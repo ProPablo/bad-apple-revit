@@ -20,22 +20,21 @@ angle = rad2deg( atan2(y2 - y1, x2 - x1));
 
 
 % Convert to HSV for better color detection
-hsvImg = rgb2hsv(img);
 
 % Create mask of JUST details
 % Convert RGB image to chosen color space
-I = rgb2hsv(RGB);
+I = rgb2hsv(img);
 
 % Define thresholds for channel 1 based on histogram settings
-channel1Min = 0.458;
-channel1Max = 0.547;
+channel1Min = 0.427;
+channel1Max = 0.531;
 
 % Define thresholds for channel 2 based on histogram settings
-channel2Min = 0.405;
+channel2Min = 0.204;
 channel2Max = 1.000;
 
 % Define thresholds for channel 3 based on histogram settings
-channel3Min = 0.782;
+channel3Min = 0.592;
 channel3Max = 1.000;
 
 % Create mask based on chosen histogram thresholds
@@ -43,10 +42,39 @@ sliderBW = (I(:,:,1) >= channel1Min ) & (I(:,:,1) <= channel1Max) & ...
     (I(:,:,2) >= channel2Min ) & (I(:,:,2) <= channel2Max) & ...
     (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
 BW = sliderBW;
+imshowpair(grayImg, BW, 'montage')
+
 
 % Do blob detection and filter small blobs
+figure
+[B,L] = bwboundaries(BW,'noholes');
+imshow(label2rgb(L, @jet, [.5 .5 .5]))
+
+figure 
+imshow(BW);
+hold on;
+BW2 = bwareafilt(BW, [3000, 50000]); %Filter out overly small and large blobs
+% ABove might not be necessary with imopen
+
+%% Perform some morphology
+m = 360; n = 90;
+SE_open = strel("rectangle",[n m] .* 0.1);
+BW3 = imopen(BW2, SE_open); % The open operation makes us lose our angle so we have to be mindful of that
+SE_close = strel("rectangle",[n m] .* 1.2);
+BW4 = imclose(BW3, SE_close);
+figure;
+montage({BW2, BW3, BW4}, "Size", [1 3], "BorderSize", 3, "BackgroundColor", "red");
+
+CC = bwconncomp(BW2);
+
+figure
+L4 = labelmatrix(CC);
+RGB_label = label2rgb(L4,@copper,"c","shuffle");
+imshow(RGB_label)
+
 
 % run ocr on each blob
+
 
 % Filter to only get the blob with 'details'
 
@@ -54,14 +82,17 @@ BW = sliderBW;
 
 
 
-imshowpair(grayImg, hsvImg, 'montage')
 
 
 %% ROI MANUAL selection
 figure;
 imshow(img);
-roi = drawrectangle;
-roiPos = roi.Position;
+roi = drawrectangle; % same as imrect but a reference and live
+roiPos = roi.Position; % [xmin, ymin, width, height]
+roiPos = round(roiPos);
+img_cropped = img(roiPos(2) + (0:roiPos(4)), roiPos(1) + (0:roiPos(3)));
+figure
+imshow(img_cropped)
 %% Draw
 figure
 Iout = insertShape(grayImg,"rectangle",roiPos,LineWidth=4);
@@ -74,12 +105,12 @@ imshowpair(Iout, BW, 'montage')
 
 %% Fucky math
 % Remove keypad background.
-Icorrected = imtophat(grayImg,strel("disk",15));
+Icorrected = imtophat(img_cropped,strel("disk",15));
 
 BW1 = imbinarize(Icorrected);
 
 figure 
-imshowpair(I,BW1,"montage")
+imshowpair(img_cropped,BW1,"montage")
 
 % Perform morphological reconstruction and show binarized image.
 marker = imerode(Icorrected,strel("line",10,0));
@@ -94,9 +125,11 @@ BW2 = imcomplement(Ibinary);
 figure
 imshowpair(Ibinary,BW2,"montage")
 
-results = ocr(BW2,LayoutAnalysis="block");
-
+results = ocr(BW2,LayoutAnalysis="none"); % This is good if detecting JUST single number as seen here
+%https://au.mathworks.com/help/vision/ug/recognize-text-using-optical-character-recognition-ocr.html 
+% https://www.youtube.com/watch?v=BL9eP8qniwg
 results.Text
+% TODO Fix for details text detection
 
 %% OCR
 

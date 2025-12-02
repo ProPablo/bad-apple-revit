@@ -65,7 +65,10 @@ BW4 = imclose(BW3, SE_close);
 figure;
 montage({BW2, BW3, BW4}, "Size", [1 3], "BorderSize", 3, "BackgroundColor", "red");
 
-CC = bwconncomp(BW2);
+CC = bwconncomp(BW4);
+stats = regionprops(CC, ["BoundingBox"] );
+roi = vertcat(stats(:).BoundingBox);
+
 
 figure
 L4 = labelmatrix(CC);
@@ -73,7 +76,16 @@ RGB_label = label2rgb(L4,@copper,"c","shuffle");
 imshow(RGB_label)
 
 
-% run ocr on each blob
+roi_img1 = insertShape(img,"rectangle",roi,LineWidth=4);
+
+
+% run ocr on each blob (roi)
+
+numAdditionalPixels = 5;
+roi(:,1:2) = roi(:,1:2) - numAdditionalPixels;
+roi(:,3:4) = roi(:,3:4) + 2*numAdditionalPixels;
+
+Icorrected = imtophat(img_cropped,strel("disk",15));
 
 
 % Filter to only get the blob with 'details'
@@ -90,7 +102,9 @@ imshow(img);
 roi = drawrectangle; % same as imrect but a reference and live
 roiPos = roi.Position; % [xmin, ymin, width, height]
 roiPos = round(roiPos);
-img_cropped = img(roiPos(2) + (0:roiPos(4)), roiPos(1) + (0:roiPos(3)));
+img_cropped = img(roiPos(2) + (0:roiPos(4)), roiPos(1) + (0:roiPos(3))); %% This only extracts B&W
+img_cropped = imcrop(img, roiPos);
+
 figure
 imshow(img_cropped)
 %% Draw
@@ -102,9 +116,27 @@ imshowpair(Iout, BW, 'montage')
 %% Get just manual image
 
 
+%% Fucky math for details text (black text white bg)
+Icorrected = imbothat(img_cropped,strel("disk",15));
+%Icorrected = imtophat(img_cropped,strel("disk",15));
 
-%% Fucky math
+BW1 = imbinarize(Icorrected);
+
+% morphological filtering (no reconstruction as some letters are non
+% contiguous)
+Iclean = bwareaopen(BW1, 5);
+
+figure 
+montage({img_cropped,Icorrected, BW1, Iclean});
+
+BW2 = imcomplement(Iclean);
+
+results = ocr(BW2,LayoutAnalysis="block"); % Block is better here since there is a very likely chance theres a lot of stuff on the outside 
+results.Text
+
+%% Fucky math for numbers text
 % Remove keypad background.
+%Icorrected = imbothat(img_cropped,strel("disk",15));
 Icorrected = imtophat(img_cropped,strel("disk",15));
 
 BW1 = imbinarize(Icorrected);
@@ -119,7 +151,7 @@ Iclean = imreconstruct(marker,Icorrected);
 Ibinary = imbinarize(Iclean);
 
 figure
-imshowpair(Iclean,Ibinary,"montage")
+montage({Iclean,Ibinary,marker})
 
 BW2 = imcomplement(Ibinary);
 figure

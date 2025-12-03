@@ -1,10 +1,13 @@
 %% INIT
 img = imread('ocr_test_2.jpg');
+figure
 imshow(img)
 % line = drawline;
 grayImg = rgb2gray(img);
 
-%% Manually get angle
+%% Manually get angle and adjust
+% These values are all based on ocr_test_2
+
 linePos = [[0.5	1113.5];
 [3024.5	1053.5]];
 y1 = linePos(1, 2);
@@ -15,9 +18,11 @@ x2 = linePos(2, 1);
 
 angle = rad2deg( atan2(y2 - y1, x2 - x1));
 
+img = imrotate(img, angle);
+figure 
+imshow(img)
 
 %% Selecting Details box
-
 
 % Convert to HSV for better color detection
 
@@ -42,6 +47,7 @@ sliderBW = (I(:,:,1) >= channel1Min ) & (I(:,:,1) <= channel1Max) & ...
     (I(:,:,2) >= channel2Min ) & (I(:,:,2) <= channel2Max) & ...
     (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
 BW = sliderBW;
+figure
 imshowpair(grayImg, BW, 'montage')
 
 
@@ -56,12 +62,17 @@ hold on;
 BW2 = bwareafilt(BW, [3000, 50000]); %Filter out overly small and large blobs
 % ABove might not be necessary with imopen
 
-%% Perform some morphology
+%% Perform some morphology for getting details region
 m = 360; n = 90;
+
 SE_open = strel("rectangle",[n m] .* 0.1);
-BW3 = imopen(BW2, SE_open); % The open operation makes us lose our angle so we have to be mindful of that
+% The open operation makes us lose our angle so we have to be mindful of that
+% On second thought angle is not needed, use phone gyro
+BW3 = imopen(BW2, SE_open); 
+
 SE_close = strel("rectangle",[n m] .* 1.2);
 BW4 = imclose(BW3, SE_close);
+
 figure;
 montage({BW2, BW3, BW4}, "Size", [1 3], "BorderSize", 3, "BackgroundColor", "red");
 
@@ -69,32 +80,132 @@ CC = bwconncomp(BW4);
 stats = regionprops(CC, ["BoundingBox"] );
 roi = vertcat(stats(:).BoundingBox);
 
-
 figure
 L4 = labelmatrix(CC);
 RGB_label = label2rgb(L4,@copper,"c","shuffle");
 imshow(RGB_label)
 
-
-roi_img1 = insertShape(img,"rectangle",roi,LineWidth=4);
-
-
-% run ocr on each blob (roi)
-
 numAdditionalPixels = 5;
 roi(:,1:2) = roi(:,1:2) - numAdditionalPixels;
 roi(:,3:4) = roi(:,3:4) + 2*numAdditionalPixels;
 
-Icorrected = imtophat(img_cropped,strel("disk",15));
+roi_img = insertShape(img,"rectangle",roi,LineWidth=4);
 
 
+%% OCR Preprocessing
+Icorrected = imbothat(img,strel("disk",15));
+
+% gaus filter to reduce LED screen noise
+Ifiltered = imgaussfilt(Icorrected, 1);
+
+BW = rgb2gray(Ifiltered);
+BW1 = imbinarize(BW);
+
+% morphological filtering (no reconstruction as some letters are non
+% contiguous)
+BW2 = bwareaopen(BW1, 5);
+
+% Black text on white background preferred for OCR
+BW3 = imcomplement(BW2);
+
+figure 
+montage({roi_img, BW1, BW2, BW3}, "BorderSize", 3, "BackgroundColor", "red");
+figure
+imshow(BW3)
+%% OCR
+results = ocr(BW3,roi, LayoutAnalysis="block");
+
+text = strip(replace({results.Text}, newline, ''))
+annotated_img  = insertObjectAnnotation(img,"rectangle",roi,text, "FontSize", 20, "LineWidth", 5);
+
+figure; 
+imshow(annotated_img)
 % Filter to only get the blob with 'details'
 
-% 
+correct_roi_idx = contains(text, "Details");
+correct_roi = roi(correct_roi_idx, :);
+correct_roi = correct_roi(1, :); % Only need first detection
+
+%% Create offsets for score OCR
+% Again thise are values based on ocr_test_2 
+% values will have to be normalized into UV coords relative to details top
+% right and width and height of details box
+
+% Raw offsets
+top_left_details = [2054,2345];
+bot_right_details = [2417,2454];
+
+top_left_score = [2720 2551];
+bot_right_score = [2953, 2611];
+
+top_left_difficulty = [1657,2471];
+
+% processed 
+score_box_size = [bot_right_score(1) - top_left_score(1), bot_right_score(2) - top_left_score(2)] % [width, height]
+score_offset = top_left_score - top_left_details %b(dest) - a (origin)
+
+difficulty_offset = top_left_difficulty - top_left_details;
+difficulty_box_size = [score_box_size(1) * 0.8, score_box_size(2)];
+
+% rois
+score_roi = [correct_roi(1:2) + score_offset , score_box_size];
+score_roi(:,1:2) = score_roi(:,1:2) - numAdditionalPixels;
+score_roi(:,3:4) = score_roi(:,3:4) + 2*numAdditionalPixels;
+
+difficulty_roi = [correct_roi(1:2) + difficulty_offset , difficulty_box_size];
+difficulty_roi(:,1:2) = difficulty_roi(:,1:2) - numAdditionalPixels;
+difficulty_roi(:,3:4) = difficulty_roi(:,3:4) + 2*numAdditionalPixels;
+
+figure
+annotated_img  = insertObjectAnnotation(annotated_img,"rectangle",[score_roi; difficulty_roi],["score_roi", "difficulty_roi"], "FontSize", 20, "LineWidth", 5);
+
+figure; 
+imshow(annotated_img)
+
+%% Ocr on score ROI
+img_cropped = imcrop(img, score_roi);
+Icorrected = imtophat(img_cropped,strel("disk",15));
+BW1 = imbinarize(Icorrected);
+
+figure 
+imshowpair(img_cropped,BW1,"montage")
+
+% Perform morphological reconstruction and show binarized image.
+marker = imerode(Icorrected,strel("line",10,0));
+Iclean = imreconstruct(marker,Icorrected);
+
+Ibinary = imbinarize(Iclean);
+
+figure
+montage({Iclean,Ibinary,marker})
+
+BW2 = imcomplement(Ibinary);
+figure
+imshowpair(Ibinary,BW2,"montage")
 
 
+results = ocr(BW2,LayoutAnalysis="none");
+score = string(strip(replace({results.Text}, {newline, ',', '.'}, "")));
+score = str2num(score)
 
+%% OCR on difficulty ROI
+img_cropped = imcrop(img, difficulty_roi);
+% thresholding
+I = rgb2hsv(img_cropped);
+% Just thresholding Value
+channel3Min = 0.63;
+channel3Max = 1.000;
 
+% Create mask based on chosen histogram thresholds
+sliderBW = (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
+BW1 = sliderBW;
+BW3 = imcomplement(BW1);
+
+figure
+montage({img_cropped, BW1, BW3});
+
+results = ocr(BW3,LayoutAnalysis="block"); % Block is better here since there is a very likely chance theres a lot of stuff on the outside 
+difficulty = string(strip(replace({results.Text}, {newline}, "")))
 
 %% ROI MANUAL selection
 figure;
@@ -113,25 +224,27 @@ Iout = insertShape(grayImg,"rectangle",roiPos,LineWidth=4);
 BW = imbinarize(grayImg);
 imshowpair(Iout, BW, 'montage')
 
-%% Get just manual image
-
-
 %% Fucky math for details text (black text white bg)
 Icorrected = imbothat(img_cropped,strel("disk",15));
 %Icorrected = imtophat(img_cropped,strel("disk",15));
 
-BW1 = imbinarize(Icorrected);
+% gaus filter to reduce LED screen noise
+Ifiltered = imgaussfilt(Icorrected, 1);
+BW = rgb2gray(Ifiltered);
+
+BW1 = imbinarize(BW);
 
 % morphological filtering (no reconstruction as some letters are non
 % contiguous)
-Iclean = bwareaopen(BW1, 5);
+BW2 = bwareaopen(BW1, 5);
+
+% Black text on white background preferred for OCR
+BW3 = imcomplement(BW2);
 
 figure 
-montage({img_cropped,Icorrected, BW1, Iclean});
+montage({img_cropped, BW2, BW1, BW3});
 
-BW2 = imcomplement(Iclean);
-
-results = ocr(BW2,LayoutAnalysis="block"); % Block is better here since there is a very likely chance theres a lot of stuff on the outside 
+results = ocr(BW3,LayoutAnalysis="block"); % Block is better here since there is a very likely chance theres a lot of stuff on the outside 
 results.Text
 
 %% Fucky math for numbers text
@@ -161,7 +274,32 @@ results = ocr(BW2,LayoutAnalysis="none"); % This is good if detecting JUST singl
 %https://au.mathworks.com/help/vision/ug/recognize-text-using-optical-character-recognition-ocr.html 
 % https://www.youtube.com/watch?v=BL9eP8qniwg
 results.Text
-% TODO Fix for details text detection
+
+
+%% FUcky math for difficulty text
+
+% thresholding
+
+I = rgb2hsv(img_cropped);
+% Just thresholding Value
+channel3Min = 0.63;
+channel3Max = 1.000;
+
+% Create mask based on chosen histogram thresholds
+sliderBW = (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
+BW1 = sliderBW;
+
+% Alternative binarization/ auto thresholding
+I2 = rgb2gray(img_cropped);
+BW2 = imbinarize(I2);
+
+figure
+montage({img_cropped, BW1, BW2});
+
+BW3 = imcomplement(BW1);
+
+results = ocr(BW3,LayoutAnalysis="block"); % Block is better here since there is a very likely chance theres a lot of stuff on the outside 
+results.Text
 
 %% OCR
 
@@ -196,3 +334,6 @@ pos_rect = h_rect.getPosition();
 pos_rect = round(pos_rect);
 % Select part of the image
 img_cropped = img(pos_rect(2) + (0:pos_rect(4)), pos_rect(1) + (0:pos_rect(3)));
+
+%% Pure OCR for gits and shiggles
+results = ocr(img);

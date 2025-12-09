@@ -1,5 +1,5 @@
 %% INIT
-img = imread('ocr_test_2.jpg');
+img = imread('ocr_test.jpg');
 figure
 imshow(img)
 % line = drawline;
@@ -18,7 +18,7 @@ x2 = linePos(2, 1);
 
 angle = rad2deg( atan2(y2 - y1, x2 - x1));
 
-img = imrotate(img, angle);
+%img = imrotate(img, angle);
 figure 
 imshow(img)
 
@@ -29,7 +29,7 @@ imshow(img)
 % Create mask of JUST details
 % Convert RGB image to chosen color space
 I = rgb2hsv(img);
-
+  
 % Define thresholds for channel 1 based on histogram settings
 channel1Min = 0.427;
 channel1Max = 0.531;
@@ -124,7 +124,7 @@ imshow(annotated_img)
 
 correct_roi_idx = contains(text, "Details");
 correct_roi = roi(correct_roi_idx, :);
-correct_roi = correct_roi(1, :); % Only need first detection
+correct_roi = correct_roi(2, :); % Only need first detection
 
 %% Create offsets for score OCR
 % Again thise are values based on ocr_test_2 
@@ -157,12 +157,10 @@ difficulty_roi(:,1:2) = difficulty_roi(:,1:2) - numAdditionalPixels;
 difficulty_roi(:,3:4) = difficulty_roi(:,3:4) + 2*numAdditionalPixels;
 
 figure
-annotated_img  = insertObjectAnnotation(annotated_img,"rectangle",[score_roi; difficulty_roi],["score_roi", "difficulty_roi"], "FontSize", 20, "LineWidth", 5);
+annotated_img2  = insertObjectAnnotation(annotated_img,"rectangle",[score_roi; difficulty_roi],["score_roi", "difficulty_roi"], "FontSize", 20, "LineWidth", 5);
+imshow(annotated_img2)
 
-figure; 
-imshow(annotated_img)
-
-%% Ocr on score ROI
+%% Ocr on score ROI`1   7
 img_cropped = imcrop(img, score_roi);
 Icorrected = imtophat(img_cropped,strel("disk",15));
 BW1 = imbinarize(Icorrected);
@@ -337,3 +335,142 @@ img_cropped = img(pos_rect(2) + (0:pos_rect(4)), pos_rect(1) + (0:pos_rect(3)));
 
 %% Pure OCR for gits and shiggles
 results = ocr(img);
+
+%% Image boundary
+% Convert to grayscale if needed
+gray = rgb2gray(img);
+
+% Threshold to binary (adjust threshold value if needed)
+bw = gray < 50;  % Black regions become white (1), rest becomes black (0)
+
+% Clean up noise
+bw = imclose(bw, strel('disk', 5));
+bw = imfill(bw, 'holes');
+
+% Find connected components
+cc = bwconncomp(bw);
+stats = regionprops(cc, 'Area', 'BoundingBox');
+
+
+%% Full OCR with some processing for score
+
+
+%% Hough lines
+grayImg = rgb2gray(img_cropped);
+
+BW = edge(grayImg,'canny');
+[H,theta,rho] = hough(BW);
+P = houghpeaks(H,5,'threshold',ceil(0.3*max(H(:))));
+lines = houghlines(BW,theta,rho,P,'FillGap',5,'MinLength',7);
+figure, imshow(grayImg), hold on
+max_len = 0;
+for k = 1:length(lines)
+   xy = [lines(k).point1; lines(k).point2];
+   plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green');
+
+   % Plot beginnings and ends of lines
+   plot(xy(1,1),xy(1,2),'x','LineWidth',2,'Color','yellow');
+   plot(xy(2,1),xy(2,2),'x','LineWidth',2,'Color','red');
+
+   % Determine the endpoints of the longest line segment
+   len = norm(lines(k).point1 - lines(k).point2);
+   if ( len > max_len)
+      max_len = len;
+      xy_long = xy;
+   end
+end
+% highlight the longest line segment
+plot(xy_long(:,1),xy_long(:,2),'LineWidth',2,'Color','red');
+
+%% Contours and getting accurate details rect
+[B,L] = bwboundaries(BW4,'noholes');
+
+coinNumber = 1;
+boundary = B{coinNumber};
+
+figure
+
+imshow(img)
+hold on
+visboundaries({boundary})
+hold off
+
+%% Using regionprops Convex hull method instead (bwboundary only gives boundary PIXELS)
+CC = bwconncomp(BW4);
+stats = regionprops(CC, "all");
+
+% Display original image
+figure;
+imshow(img);
+hold on;
+
+% Draw all contours
+for i = 1:length(stats)
+    % Draw ConvexHull
+    hull = stats(i).ConvexHull;
+    plot(hull(:,1), hull(:,2), 'g-', 'LineWidth', 2);
+    
+    % Optionally draw extrema points
+    extrema = stats(i).Extrema;
+    plot(extrema(:,1), extrema(:,2), 'r*', 'MarkerSize', 10);
+end
+
+% Select the biggest and simplify
+% Find the largest region (likely the document)
+[~, idx] = max([stats.Area]);
+boundary = stats(idx).ConvexHull;  % Nx2 matrix of boundary points
+
+
+% Approximate polygon (Douglas-Peucker algorithm)
+perimeter = stats(idx).Perimeter;
+epsilon = 0.1;
+approx = reducepoly(boundary, epsilon);
+
+% Dr aw approximated polygon with different color for each edge
+colors = lines(size(approx, 1));
+for i = 1:size(approx, 1)
+    nextIdx = mod(i, size(approx, 1)) + 1;
+    plot([approx(i,1), approx(nextIdx,1)], [approx(i,2), approx(nextIdx,2)], ...
+        'Color', colors(i,:), 'LineWidth', 4);
+end
+
+% Draw vertices
+plot(approx(:,1), approx(:,2), 'ko', 'MarkerSize', 12, 'MarkerFaceColor', 'yellow');
+
+pts = approx(1:4, :);
+% Order points: top-left, top-right, bottom-right, bottom-left
+[~, idx] = sort(sum(pts, 2));  % sum of x+y
+tl = pts(idx(1), :);  % smallest sum = top-left
+br = pts(idx(end), :); % largest sum = bottom-right
+
+remaining = pts(idx(2:3), :);
+[~, idx2] = sort(remaining(:,1));
+tr = remaining(idx2(2), :);  % larger x = top-right
+bl = remaining(idx2(1), :);  % smaller x = bottom-left
+
+ordered = [tl; tr; br; bl];
+
+%% Perform homography according to details reference points from ocr_test_2
+
+% Create the 4 reference corner points
+ref_tl = top_left_details;
+ref_tr = [bot_right_details(1), top_left_details(2)];
+ref_br = bot_right_details;
+ref_bl = [top_left_details(1), bot_right_details(2)];
+
+% Reference points in same order as your detected corners
+referencePoints = [ref_tl; ref_tr; ref_br; ref_bl];
+
+% Your detected corners from the image
+ordered = [tl; tr; br; bl];
+
+% Compute homography
+tform = fitgeotrans(ordered, referencePoints, 'projective');
+
+% Apply perspective transform
+outputImg = imwarp(img, tform);
+
+figure 
+montage({img, outputImg})
+
+%% Read from offsets

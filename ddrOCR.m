@@ -461,18 +461,17 @@ ref_bl = [top_left_details(1), bot_right_details(2)];
 % Reference points in same order as your detected corners
 referencePoints = [ref_tl; ref_tr; ref_br; ref_bl];
 
-
 % Compute homography
 tform = fitgeotrans(ordered, referencePoints, 'projective');
 
 % Apply perspective transform
-[outputImg, RB] = imwarp(img, tform);
+[warpedImg, RB] = imwarp(img, tform);
 
 figure 
-montage({img, outputImg})
+montage({img, warpedImg})
 
 figure
-imshow(outputImg);
+imshow(warpedImg);
 
 %% Read from offsets
 
@@ -484,7 +483,7 @@ score_roi = [warped_details_top_left + score_offset , score_box_size];
 
 score_roi  = expandRoi(score_roi);
 
-img_cropped = imcrop(outputImg, score_roi);
+img_cropped = imcrop(warpedImg, score_roi);
 Icorrected = imtophat(img_cropped,strel("disk",15));
 BW1 = imbinarize(Icorrected);
 
@@ -508,3 +507,26 @@ imshowpair(Ibinary,BW2,"montage")
 results = ocr(BW2,LayoutAnalysis="none");
 score = string(strip(replace({results.Text}, {newline, ',', '.'}, "")));
 score = str2num(score)
+
+%% Difficulty
+difficulty_roi = [warped_details_top_left + difficulty_offset , difficulty_box_size];
+
+difficulty_roi = expandRoi(difficulty_roi);
+
+img_cropped = imcrop(warpedImg, difficulty_roi);
+% thresholding
+I = rgb2hsv(img_cropped);
+% Just thresholding Value
+channel3Min = 0.63;
+channel3Max = 1.000;
+
+% Create mask based on chosen histogram thresholds
+sliderBW = (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
+BW1 = sliderBW;
+BW3 = imcomplement(BW1);
+
+figure
+montage({img_cropped, BW1, BW3});
+
+results = ocr(BW3,LayoutAnalysis="block"); % Block is better here since there is a very likely chance theres a lot of stuff on the outside 
+difficulty = string(strip(replace({results.Text}, {newline}, "")))

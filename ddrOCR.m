@@ -127,7 +127,7 @@ correct_roi = roi(correct_roi_idx, :);
 correct_roi = correct_roi(2, :); % Only need first detection
 
 %% Create offsets for score OCR
-% Again thise are values based on ocr_test_2 
+% Again thise are values based on ocr_test_2 rotated to be aliigned
 % values will have to be normalized into UV coords relative to details top
 % right and width and height of details box
 
@@ -160,7 +160,7 @@ figure
 annotated_img2  = insertObjectAnnotation(annotated_img,"rectangle",[score_roi; difficulty_roi],["score_roi", "difficulty_roi"], "FontSize", 20, "LineWidth", 5);
 imshow(annotated_img2)
 
-%% Ocr on score ROI`1   7
+%% Ocr on score ROI
 img_cropped = imcrop(img, score_roi);
 Icorrected = imtophat(img_cropped,strel("disk",15));
 BW1 = imbinarize(Icorrected);
@@ -461,16 +461,50 @@ ref_bl = [top_left_details(1), bot_right_details(2)];
 % Reference points in same order as your detected corners
 referencePoints = [ref_tl; ref_tr; ref_br; ref_bl];
 
-% Your detected corners from the image
-ordered = [tl; tr; br; bl];
 
 % Compute homography
 tform = fitgeotrans(ordered, referencePoints, 'projective');
 
 % Apply perspective transform
-outputImg = imwarp(img, tform);
+[outputImg, RB] = imwarp(img, tform);
 
 figure 
 montage({img, outputImg})
 
+figure
+imshow(outputImg);
+
 %% Read from offsets
+
+[xdataT,ydataT]=transformPointsForward(tform,tl(1), tl(2));
+[t1x,t1y]=worldToIntrinsic(RB,xdataT,ydataT);
+
+warped_details_top_left = [t1x, t1y];
+score_roi = [warped_details_top_left + score_offset , score_box_size];
+
+score_roi  = expandRoi(score_roi);
+
+img_cropped = imcrop(outputImg, score_roi);
+Icorrected = imtophat(img_cropped,strel("disk",15));
+BW1 = imbinarize(Icorrected);
+
+figure 
+imshowpair(img_cropped,BW1,"montage")
+
+% Perform morphological reconstruction and show binarized image.
+marker = imerode(Icorrected,strel("line",10,0));
+Iclean = imreconstruct(marker,Icorrected);
+
+Ibinary = imbinarize(Iclean);
+
+figure
+montage({Iclean,Ibinary,marker})
+
+BW2 = imcomplement(Ibinary);
+figure
+imshowpair(Ibinary,BW2,"montage")
+
+
+results = ocr(BW2,LayoutAnalysis="none");
+score = string(strip(replace({results.Text}, {newline, ',', '.'}, "")));
+score = str2num(score)

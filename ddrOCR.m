@@ -1,5 +1,7 @@
 %% INIT
-img = imread('ocr_test.jpg');
+clear; close all;
+
+img = imread('ocr_test_3.jpg');
 figure
 imshow(img)
 % line = drawline;
@@ -23,7 +25,6 @@ figure
 imshow(img)
 
 %% Selecting Details box
-
 % Convert to HSV for better color detection
 
 % Create mask of JUST details
@@ -124,7 +125,7 @@ imshow(annotated_img)
 
 correct_roi_idx = contains(text, "Details");
 correct_roi = roi(correct_roi_idx, :);
-correct_roi = correct_roi(2, :); % Only need first detection
+correct_roi = correct_roi(1, :); % Only need first detection
 
 %% Create offsets for score OCR
 % Again thise are values based on ocr_test_2 rotated to be aliigned
@@ -159,6 +160,146 @@ difficulty_roi(:,3:4) = difficulty_roi(:,3:4) + 2*numAdditionalPixels;
 figure
 annotated_img2  = insertObjectAnnotation(annotated_img,"rectangle",[score_roi; difficulty_roi],["score_roi", "difficulty_roi"], "FontSize", 20, "LineWidth", 5);
 imshow(annotated_img2)
+
+%% Using regionprops Convex hull method instead (bwboundary only gives boundary PIXELS)
+CC = bwconncomp(BW4);
+stats = regionprops(CC, "all");
+
+% Display original image
+figure;
+imshow(img);
+hold on;
+
+% Draw all contours
+for i = 1:length(stats)
+    % Draw ConvexHull
+    hull = stats(i).ConvexHull;
+    plot(hull(:,1), hull(:,2), 'g-', 'LineWidth', 2);
+    
+    % Optionally draw extrema points
+    extrema = stats(i).Extrema;
+    plot(extrema(:,1), extrema(:,2), 'r*', 'MarkerSize', 10);
+end
+
+% Select the biggest and simplify
+% Find the largest region (likely the document)
+[~, idx] = max([stats.Area]);
+%idx = 1; % manually select region
+boundary = stats(idx).ConvexHull;  % Nx2 matrix of boundary points
+
+
+% Approximate polygon (Douglas-Peucker algorithm)
+perimeter = stats(idx).Perimeter;
+epsilon = 0.1;
+approx = reducepoly(boundary, epsilon);
+
+% Draw approximated polygon with different color for each edge
+colors = lines(size(approx, 1));
+for i = 1:size(approx, 1)
+    nextIdx = mod(i, size(approx, 1)) + 1;
+    plot([approx(i,1), approx(nextIdx,1)], [approx(i,2), approx(nextIdx,2)], ...
+        'Color', colors(i,:), 'LineWidth', 4);
+end
+
+% Draw vertices
+plot(approx(:,1), approx(:,2), 'ko', 'MarkerSize', 12, 'MarkerFaceColor', 'yellow');
+
+pts = approx(1:4, :);
+% Order points: top-left, top-right, bottom-right, bottom-left
+[~, idx] = sort(sum(pts, 2));  % sum of x+y
+tl = pts(idx(1), :);  % smallest sum = top-left
+br = pts(idx(end), :); % largest sum = bottom-right
+
+remaining = pts(idx(2:3), :);
+[~, idx2] = sort(remaining(:,1));
+tr = remaining(idx2(2), :);  % larger x = top-right
+bl = remaining(idx2(1), :);  % smaller x = bottom-left
+
+ordered = [tl; tr; br; bl];
+
+%% Perform homography according to details reference points from rotated ocr_test_2
+
+% Create the 4 reference corner points
+ref_tl = top_left_details;
+ref_tr = [bot_right_details(1), top_left_details(2)];
+ref_br = bot_right_details;
+ref_bl = [top_left_details(1), bot_right_details(2)];
+
+% Reference points in same order as your detected corners
+referencePoints = [ref_tl; ref_tr; ref_br; ref_bl];
+
+% Compute homography
+tform = fitgeotrans(ordered, referencePoints, 'projective');
+
+% Apply perspective transform
+[warpedImg, RB] = imwarp(img, tform);
+
+figure 
+montage({img, warpedImg})
+
+figure
+imshow(warpedImg);
+
+%% Read from offsets
+
+[xdataT,ydataT]=transformPointsForward(tform,tl(1), tl(2));
+[t1x,t1y]=worldToIntrinsic(RB,xdataT,ydataT);
+
+warped_details_top_left = [t1x, t1y];
+score_roi = [warped_details_top_left + score_offset , score_box_size];
+
+score_roi  = expandRoi(score_roi);
+
+img_cropped = imcrop(warpedImg, score_roi);
+Icorrected = imtophat(img_cropped,strel("disk",15));
+BW1 = imbinarize(Icorrected);
+
+figure 
+imshowpair(img_cropped,BW1,"montage")
+
+% Perform morphological reconstruction and show binarized image.
+marker = imerode(Icorrected,strel("line",10,0));
+Iclean = imreconstruct(marker,Icorrected);
+
+Ibinary = imbinarize(Iclean);
+
+figure
+montage({Iclean,Ibinary,marker})
+
+BW2 = imcomplement(Ibinary);
+figure
+imshowpair(Ibinary,BW2,"montage")
+
+
+results = ocr(BW2,LayoutAnalysis="none");
+score = string(strip(replace({results.Text}, {newline, ',', '.'}, "")));
+score = str2num(score)
+
+%% Difficulty
+difficulty_roi = [warped_details_top_left + difficulty_offset , difficulty_box_size];
+
+difficulty_roi = expandRoi(difficulty_roi);
+
+img_cropped = imcrop(warpedImg, difficulty_roi);
+% thresholding
+I = rgb2hsv(img_cropped);
+% Just thresholding Value
+channel3Min = 0.63;
+channel3Max = 1.000;
+
+% Create mask based on chosen histogram thresholds
+sliderBW = (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
+BW1 = sliderBW;
+BW3 = imcomplement(BW1);
+
+figure
+montage({img_cropped, BW1, BW3});
+
+results = ocr(BW3,LayoutAnalysis="block"); % Block is better here since there is a very likely chance theres a lot of stuff on the outside 
+difficulty = string(strip(replace({results.Text}, {newline}, "")))
+
+%% MAIN IMPL STOP HERE
+disp("done")
 
 %% Ocr on score ROI
 img_cropped = imcrop(img, score_roi);
@@ -395,138 +536,3 @@ hold on
 visboundaries({boundary})
 hold off
 
-%% Using regionprops Convex hull method instead (bwboundary only gives boundary PIXELS)
-CC = bwconncomp(BW4);
-stats = regionprops(CC, "all");
-
-% Display original image
-figure;
-imshow(img);
-hold on;
-
-% Draw all contours
-for i = 1:length(stats)
-    % Draw ConvexHull
-    hull = stats(i).ConvexHull;
-    plot(hull(:,1), hull(:,2), 'g-', 'LineWidth', 2);
-    
-    % Optionally draw extrema points
-    extrema = stats(i).Extrema;
-    plot(extrema(:,1), extrema(:,2), 'r*', 'MarkerSize', 10);
-end
-
-% Select the biggest and simplify
-% Find the largest region (likely the document)
-[~, idx] = max([stats.Area]);
-boundary = stats(idx).ConvexHull;  % Nx2 matrix of boundary points
-
-
-% Approximate polygon (Douglas-Peucker algorithm)
-perimeter = stats(idx).Perimeter;
-epsilon = 0.1;
-approx = reducepoly(boundary, epsilon);
-
-% Dr aw approximated polygon with different color for each edge
-colors = lines(size(approx, 1));
-for i = 1:size(approx, 1)
-    nextIdx = mod(i, size(approx, 1)) + 1;
-    plot([approx(i,1), approx(nextIdx,1)], [approx(i,2), approx(nextIdx,2)], ...
-        'Color', colors(i,:), 'LineWidth', 4);
-end
-
-% Draw vertices
-plot(approx(:,1), approx(:,2), 'ko', 'MarkerSize', 12, 'MarkerFaceColor', 'yellow');
-
-pts = approx(1:4, :);
-% Order points: top-left, top-right, bottom-right, bottom-left
-[~, idx] = sort(sum(pts, 2));  % sum of x+y
-tl = pts(idx(1), :);  % smallest sum = top-left
-br = pts(idx(end), :); % largest sum = bottom-right
-
-remaining = pts(idx(2:3), :);
-[~, idx2] = sort(remaining(:,1));
-tr = remaining(idx2(2), :);  % larger x = top-right
-bl = remaining(idx2(1), :);  % smaller x = bottom-left
-
-ordered = [tl; tr; br; bl];
-
-%% Perform homography according to details reference points from ocr_test_2
-
-% Create the 4 reference corner points
-ref_tl = top_left_details;
-ref_tr = [bot_right_details(1), top_left_details(2)];
-ref_br = bot_right_details;
-ref_bl = [top_left_details(1), bot_right_details(2)];
-
-% Reference points in same order as your detected corners
-referencePoints = [ref_tl; ref_tr; ref_br; ref_bl];
-
-% Compute homography
-tform = fitgeotrans(ordered, referencePoints, 'projective');
-
-% Apply perspective transform
-[warpedImg, RB] = imwarp(img, tform);
-
-figure 
-montage({img, warpedImg})
-
-figure
-imshow(warpedImg);
-
-%% Read from offsets
-
-[xdataT,ydataT]=transformPointsForward(tform,tl(1), tl(2));
-[t1x,t1y]=worldToIntrinsic(RB,xdataT,ydataT);
-
-warped_details_top_left = [t1x, t1y];
-score_roi = [warped_details_top_left + score_offset , score_box_size];
-
-score_roi  = expandRoi(score_roi);
-
-img_cropped = imcrop(warpedImg, score_roi);
-Icorrected = imtophat(img_cropped,strel("disk",15));
-BW1 = imbinarize(Icorrected);
-
-figure 
-imshowpair(img_cropped,BW1,"montage")
-
-% Perform morphological reconstruction and show binarized image.
-marker = imerode(Icorrected,strel("line",10,0));
-Iclean = imreconstruct(marker,Icorrected);
-
-Ibinary = imbinarize(Iclean);
-
-figure
-montage({Iclean,Ibinary,marker})
-
-BW2 = imcomplement(Ibinary);
-figure
-imshowpair(Ibinary,BW2,"montage")
-
-
-results = ocr(BW2,LayoutAnalysis="none");
-score = string(strip(replace({results.Text}, {newline, ',', '.'}, "")));
-score = str2num(score)
-
-%% Difficulty
-difficulty_roi = [warped_details_top_left + difficulty_offset , difficulty_box_size];
-
-difficulty_roi = expandRoi(difficulty_roi);
-
-img_cropped = imcrop(warpedImg, difficulty_roi);
-% thresholding
-I = rgb2hsv(img_cropped);
-% Just thresholding Value
-channel3Min = 0.63;
-channel3Max = 1.000;
-
-% Create mask based on chosen histogram thresholds
-sliderBW = (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
-BW1 = sliderBW;
-BW3 = imcomplement(BW1);
-
-figure
-montage({img_cropped, BW1, BW3});
-
-results = ocr(BW3,LayoutAnalysis="block"); % Block is better here since there is a very likely chance theres a lot of stuff on the outside 
-difficulty = string(strip(replace({results.Text}, {newline}, "")))

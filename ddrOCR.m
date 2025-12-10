@@ -1,7 +1,7 @@
 %% INIT
 clear; close all;
 
-img = imread('ocr_test_3.jpg');
+img = imread('ocr_test_4.jpg');
 figure
 imshow(img)
 % line = drawline;
@@ -183,10 +183,11 @@ end
 
 % Select the biggest and simplify
 % Find the largest region (likely the document)
-[~, idx] = max([stats.Area]);
-%idx = 1; % manually select region
-boundary = stats(idx).ConvexHull;  % Nx2 matrix of boundary points
+% [~, idx] = max([stats.Area]);
 
+idx = find(correct_roi_idx);
+boundary = stats(idx).ConvexHull;  % Nx2 matrix of boundary points 
+% (indexing a prop like this just gets the first one even though idx has 2 memebers)
 
 % Approximate polygon (Douglas-Peucker algorithm)
 perimeter = stats(idx).Perimeter;

@@ -1,7 +1,7 @@
 %% INIT
 clear; close all;
 
-img = imread('ocr_test_4.jpg');
+img = imread('ocr_test_7.jpg');
 figure
 imshow(img)
 % line = drawline;
@@ -20,26 +20,25 @@ x2 = linePos(2, 1);
 
 angle = rad2deg( atan2(y2 - y1, x2 - x1));
 
-%img = imrotate(img, angle);
+angle = -4;
+img = imrotate(img, angle);
 figure 
 imshow(img)
 
 %% Selecting Details box
-% Convert to HSV for better color detection
 
 % Create mask of JUST details
-% Convert RGB image to chosen color space
+
+
+% Convert RGB image to HSV
 I = rgb2hsv(img);
   
-% Define thresholds for channel 1 based on histogram settings
-channel1Min = 0.427;
+channel1Min = 0.380;
 channel1Max = 0.531;
 
-% Define thresholds for channel 2 based on histogram settings
 channel2Min = 0.204;
 channel2Max = 1.000;
 
-% Define thresholds for channel 3 based on histogram settings
 channel3Min = 0.592;
 channel3Max = 1.000;
 
@@ -47,10 +46,34 @@ channel3Max = 1.000;
 sliderBW = (I(:,:,1) >= channel1Min ) & (I(:,:,1) <= channel1Max) & ...
     (I(:,:,2) >= channel2Min ) & (I(:,:,2) <= channel2Max) & ...
     (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
-BW = sliderBW;
-figure
-imshowpair(grayImg, BW, 'montage')
+BW_HSV = sliderBW;
 
+% Create better mask with LAB (more expensive)
+% Convert RGB image to chosen color space
+I = rgb2lab(img);
+
+% Define thresholds for channel 1 based on histogram settings
+channel1Min = 0.000;
+channel1Max = 100.000;
+
+% Define thresholds for channel 2 based on histogram settings
+channel2Min = -61.360;
+channel2Max = -26.210;
+
+% Define thresholds for channel 3 based on histogram settings
+channel3Min = -31.648;
+channel3Max = 34.659;
+
+% Create mask based on chosen histogram thresholds
+sliderBW = (I(:,:,1) >= channel1Min ) & (I(:,:,1) <= channel1Max) & ...
+    (I(:,:,2) >= channel2Min ) & (I(:,:,2) <= channel2Max) & ...
+    (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
+BW = sliderBW;
+
+BW = BW_HSV; % Force select HSV instead 
+figure
+montage({grayImg, BW_HSV, BW})
+ 
 
 % Do blob detection and filter small blobs
 figure
@@ -136,7 +159,7 @@ correct_roi = correct_roi(1, :); % Only need first detection
 top_left_details = [2054,2345];
 bot_right_details = [2417,2454];
 
-top_left_score = [2720 2551];
+top_left_score = [2700 2551];
 bot_right_score = [2953, 2611];
 
 top_left_difficulty = [1657,2471];
@@ -282,21 +305,48 @@ difficulty_roi = [warped_details_top_left + difficulty_offset , difficulty_box_s
 difficulty_roi = expandRoi(difficulty_roi);
 
 img_cropped = imcrop(warpedImg, difficulty_roi);
+
+figure
+imshowHist(img_cropped);
+
 % thresholding
 I = rgb2hsv(img_cropped);
 % Just thresholding Value
-channel3Min = 0.63;
+channel3Min = 0.53;
 channel3Max = 1.000;
 
 % Create mask based on chosen histogram thresholds
 sliderBW = (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
 BW1 = sliderBW;
+gray = rgb2gray(img_cropped);
+BW2 = imbinarize(gray);
 BW3 = imcomplement(BW1);
 
-figure
-montage({img_cropped, BW1, BW3});
 
-results = ocr(BW3,LayoutAnalysis="block"); % Block is better here since there is a very likely chance theres a lot of stuff on the outside 
+
+masked_img_cropped = img_cropped;
+% Set background pixels where BW is false to zero.
+masked_img_cropped(repmat(~BW1,[1 1 3])) = 0; % The "value" now has a bucket at 0 that is very high here because of all the black 
+% but the hue matches closely to the target bucket
+figure
+imshowHist(masked_img_cropped);
+
+% Should binarize better here using LAB OR use histogram buckets after
+% simple thresholding to get most prominent hue
+
+I = rgb2lab(img_cropped);
+channel1Min = 40.381;
+channel1Max = 84.895;
+sliderBW = (I(:,:,1) >= channel1Min ) & (I(:,:,1) <= channel1Max);
+BW4 = sliderBW;
+
+figure
+montage({img_cropped, BW1, BW2, BW3});
+
+figure 
+imshow(BW4)
+
+results = ocr(BW4,LayoutAnalysis="block"); % Block is better here since there is a very likely chance theres a lot of stuff on the outside 
 difficulty = string(strip(replace({results.Text}, {newline}, "")))
 
 %% MAIN IMPL STOP HERE
@@ -330,6 +380,10 @@ score = str2num(score)
 
 %% OCR on difficulty ROI
 img_cropped = imcrop(img, difficulty_roi);
+
+figure
+imshowHist(img_cropped);
+
 % thresholding
 I = rgb2hsv(img_cropped);
 % Just thresholding Value
@@ -340,6 +394,16 @@ channel3Max = 1.000;
 sliderBW = (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
 BW1 = sliderBW;
 BW3 = imcomplement(BW1);
+
+masked_img_cropped = img_cropped;
+
+% Set background pixels where BW is false to zero.
+masked_img_cropped(repmat(~BW,[1 1 3])) = 0;
+
+figure
+imshowHist(masked_img_cropped);
+
+
 
 figure
 montage({img_cropped, BW1, BW3});
@@ -537,3 +601,35 @@ hold on
 visboundaries({boundary})
 hold off
 
+%% Colour histogram 
+% Convert to HSV color space
+hsv_img = rgb2hsv(img_cropped);
+
+% Extract the hue channel (first channel)
+hue = hsv_img(:,:,1);
+
+% Flatten the hue matrix to a vector
+hue_vector = hue(:);
+
+% Create histogram with specified number of bins
+num_bins = 36; % 36 bins = 10 degrees per bin
+figure;
+histogram(hue_vector, num_bins, 'EdgeColor', 'none');
+
+% Customize the plot
+xlabel('Hue Value (0-1, where 0=Red, 0.33=Green, 0.67=Blue)');
+ylabel('Pixel Count');
+title('Hue Distribution Histogram');
+grid on;
+
+% Add color bar showing hue spectrum
+colormap(hsv(num_bins));
+colorbar('Ticks', linspace(0, 1, 7), ...
+         'TickLabels', {'Red', 'Yellow', 'Green', 'Cyan', 'Blue', 'Magenta', 'Red'});
+
+% Optional: Find the most dominant hue
+[counts, edges] = histcounts(hue_vector, num_bins);
+[max_count, max_idx] = max(counts);
+dominant_hue = (edges(max_idx) + edges(max_idx+1)) / 2;
+
+fprintf('Most dominant hue value: %.3f\n', dominant_hue);

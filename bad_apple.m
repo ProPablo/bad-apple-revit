@@ -4,7 +4,7 @@ bad_img = imread('bad/0004.png');
 gray_img = rgb2gray(bad_img);
 BW = imbinarize(gray_img, 'global'); % we dont need adaptive here, adaptive is good for eg a half lit page
 BW2 = imcomplement(BW); % invert selection
-edges = edge(BW);
+edges = edge(BW2);
 [y, x] = find(edges == 1); % find gives row, cols
 figure;
 plot(y,x)
@@ -15,7 +15,7 @@ figure;
 scatter(x,-y)
 
 %% create boundaries without edge detection
-[B1,L1, n1] = bwboundaries(BW, 'noholes');
+[B1,L1, n1] = bwboundaries(BW2, 'noholes');
 
 figure
 imshow(label2rgb(L1, @jet, [.5 .5 .5]))
@@ -38,7 +38,7 @@ for k = 1:length(B)
 end
 
 %% Simplify the biggest region 
-[B,L, n] = bwboundaries(BW, 'noholes');
+[B,L, n] = bwboundaries(BW2, 'noholes');
 lengths = [];
 for k = 1:length(B)
     lengths = [lengths, length(B{k})];
@@ -70,7 +70,7 @@ legend('Original', 'Downsampled')
 axis equal
 
 %% Need closed shapes and countours instead 
-CC = bwconncomp(BW);
+CC = bwconncomp(BW2);
 stats = regionprops(CC, "all");
 
 % Find the largest area
@@ -97,15 +97,3 @@ hold on
 plot(boundary(:,1), boundary(:,2), 'r-', 'LineWidth', 2)
 title('Convex Hull of Largest Region')
 
-%% Resample example
-fs = 10;
-t1 = 0:1/fs:1;
-x = t1;
-y = resample(x,3,2);
-t2 = (0:(length(y)-1))*2/(3*fs);
-figure
-plot(t1,x,'*',t2,y,'o')
-xlabel('Time (s)')
-ylabel('Signal')
-legend('Original','Resampled', ...
-    'Location','NorthWest')

@@ -645,6 +645,7 @@ format compact;
 hsv_img = rgb2hsv(img);
 
 r = img(:,:,3);
+
 figure
 imshow(r);
 
@@ -658,37 +659,42 @@ figure
 imshow(amplitudeImage, []);
 
 %% Mask creation
-% top_left_mask = [399 551];  % Measured from imshow
-% mask_radius = 0;
-% s = size(r);
-% 
-% % Calculate center and offsets from the measured top-left position
-% center_x = s(2) / 2;
-% center_y = s(1) / 2;
-% offset_x = center_x - top_left_mask(1);
-% offset_y = center_y - top_left_mask(2);
-% 
-% % Create four corners symmetrically around the center using the measured top-left
-% %top_right_mask = [center_x + offset_x, center_y - offset_y];
-% %bottom_left_mask = [center_x - offset_x, center_y + offset_y];
-%  top_right_mask= [787 535];
-% bottom_left_mask = [414	1068];
-% %bottom_right_mask = [center_x + offset_x, center_y + offset_y];
-% bottom_right_mask = [802 1053];
-% mask = circles2mask([top_left_mask; top_right_mask; bottom_left_mask; bottom_right_mask], mask_radius, s);
-% mask_2 = ~mask;
-% figure 
-% imshow(mask)
+top_left_mask = [399 551];  % Measured from imshow
+mask_radius = 20;
+s = size(r);
+
+% Calculate center and offsets from the measured top-left position
+center_x = s(2) / 2;
+center_y = s(1) / 2;
+offset_x = center_x - top_left_mask(1);
+offset_y = center_y - top_left_mask(2);
+
+% Create four corners symmetrically around the center using the measured top-left
+%top_right_mask = [center_x + offset_x, center_y - offset_y];
+%bottom_left_mask = [center_x - offset_x, center_y + offset_y];
+ top_right_mask= [787 535];
+bottom_left_mask = [414	1068];
+%bottom_right_mask = [center_x + offset_x, center_y + offset_y];
+bottom_right_mask = [802 1053];
+mask = circles2mask([top_left_mask; top_right_mask; bottom_left_mask; bottom_right_mask], mask_radius, s);
+%mask = circles2mask([center_x center_y], mask_radius, s);
+
+figure 
+imshow(mask)
 
 freq_image_masked = frequencyImage;
-%freq_image_masked(mask) = 0;
+freq_image_masked(mask) = 0;
 
 amplitudeImage2 = log(abs(freq_image_masked));
 
 figure 
 imshow(amplitudeImage2, [minValue maxValue]);
 
-filteredImage = ifft2(fftshift(freq_image_masked));
+filteredImage = ifft2(ifftshift(freq_image_masked));
+% Take real part and ensure proper scaling
+filteredImage = real(filteredImage);
+filteredImage = mat2gray(filteredImage); 
+
 amplitudeImage3 = abs(filteredImage);
 figure 
 imshow(amplitudeImage3)

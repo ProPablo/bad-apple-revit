@@ -97,3 +97,28 @@ hold on
 plot(boundary(:,1), boundary(:,2), 'r-', 'LineWidth', 2)
 title('Convex Hull of Largest Region')
 
+%% Compare downsampling methods
+boundary = biggest;
+
+% Method 1: Simple downsample (can be jaggy)
+factor = 10;
+boundary_downsampled = boundary(1:factor:end, :);
+
+% Method 2: Interpolation (smoother)
+x = boundary(:, 2);
+y = boundary(:, 1);
+t = 1:length(x);
+t_new = linspace(1, length(x), round(length(x)/factor));
+x_interp = interp1(t, x, t_new);
+y_interp = interp1(t, y, t_new);
+boundary_interpolated = [y_interp', x_interp'];
+
+% Visualize comparison
+figure;
+hold on;
+title('Downsampled');
+plot(boundary(:,2), -boundary(:,1), 'b-', 'LineWidth', 5)
+plot(boundary_downsampled(:,2), -boundary_downsampled(:,1), 'r-', 'LineWidth', 2)
+plot(boundary_interpolated(:,2), -boundary_interpolated(:,1), 'y-', 'LineWidth', 2)
+legend('Original', 'Downsampled', 'Interpolated')
+axis equal;

@@ -1,7 +1,7 @@
 %% INIT
 clear; close all;
 
-img = imread('ocr_test_7.jpg');
+img = imread('ocr_test_9.jpg');
 figure
 imshow(img)
 % line = drawline;
@@ -606,10 +606,10 @@ hold off
 hsv_img = rgb2hsv(img_cropped);
 
 % Extract the hue channel (first channel)
-hue = hsv_img(:,:,1);
+r = hsv_img(:,:,1);
 
 % Flatten the hue matrix to a vector
-hue_vector = hue(:);
+hue_vector = r(:);
 
 % Create histogram with specified number of bins
 num_bins = 36; % 36 bins = 10 degrees per bin
@@ -633,3 +633,62 @@ colorbar('Ticks', linspace(0, 1, 7), ...
 dominant_hue = (edges(max_idx) + edges(max_idx+1)) / 2;
 
 fprintf('Most dominant hue value: %.3f\n', dominant_hue);
+
+
+%% Moire filtering
+img = imread('moire_img.png');
+
+workspace;  % Make sure the workspace panel is showing.
+format long g;
+format compact;
+
+hsv_img = rgb2hsv(img);
+
+r = img(:,:,3);
+figure
+imshow(r);
+
+% Compute the 2D fft.
+frequencyImage = fftshift(fft2(r));
+% Take log magnitude so we can see it better in the display.
+amplitudeImage = log(abs(frequencyImage));
+minValue = min(min(amplitudeImage))
+maxValue = max(max(amplitudeImage))
+figure
+imshow(amplitudeImage, []);
+
+%% Mask creation
+% top_left_mask = [399 551];  % Measured from imshow
+% mask_radius = 0;
+% s = size(r);
+% 
+% % Calculate center and offsets from the measured top-left position
+% center_x = s(2) / 2;
+% center_y = s(1) / 2;
+% offset_x = center_x - top_left_mask(1);
+% offset_y = center_y - top_left_mask(2);
+% 
+% % Create four corners symmetrically around the center using the measured top-left
+% %top_right_mask = [center_x + offset_x, center_y - offset_y];
+% %bottom_left_mask = [center_x - offset_x, center_y + offset_y];
+%  top_right_mask= [787 535];
+% bottom_left_mask = [414	1068];
+% %bottom_right_mask = [center_x + offset_x, center_y + offset_y];
+% bottom_right_mask = [802 1053];
+% mask = circles2mask([top_left_mask; top_right_mask; bottom_left_mask; bottom_right_mask], mask_radius, s);
+% mask_2 = ~mask;
+% figure 
+% imshow(mask)
+
+freq_image_masked = frequencyImage;
+%freq_image_masked(mask) = 0;
+
+amplitudeImage2 = log(abs(freq_image_masked));
+
+figure 
+imshow(amplitudeImage2, [minValue maxValue]);
+
+filteredImage = ifft2(fftshift(freq_image_masked));
+amplitudeImage3 = abs(filteredImage);
+figure 
+imshow(amplitudeImage3)

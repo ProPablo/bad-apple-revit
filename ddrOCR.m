@@ -721,4 +721,58 @@ filteredImage_rgb = cat(3, filteredImage_r, filteredImage_g, filteredImage_b);
 figure 
 imshow(filteredImage_rgb)
 
+%% Moire filtering - HSV Hue channel only
+% Convert to HSV
+hsv_img = rgb2hsv(img);
+h = hsv_img(:,:,1);
+
+figure
+imshow(h);
+
+
+% Compute the 2D fft for hue channel
+frequencyImage_h = fftshift(fft2(h));
+% Take log magnitude so we can see it better in the display.
+amplitudeImage_h = log(abs(frequencyImage_h));
+minValue_h = min(min(amplitudeImage_h));
+maxValue_h = max(max(amplitudeImage_h));
+
+figure
+imshow(amplitudeImage_h, [minValue_h maxValue_h]);
+title('Hue Channel - Frequency Domain (Before Masking)');
+
+
+
+left_mask = [301 805]
+right_mask = [901 803]
+
+hsv_mask = circles2mask([left_mask; right_mask], 250, s);
+
+% Apply mask to hue channel
+freq_image_masked_h = frequencyImage_h;
+freq_image_masked_h(hsv_mask) = 0;
+
+amplitudeImage_h_masked = log(abs(freq_image_masked_h));
+
+figure 
+imshow(amplitudeImage_h_masked, [minValue_h maxValue_h]);
+title('Hue Channel - Frequency Domain (After Masking)');
+
+% Inverse transform hue channel
+filteredImage_h = ifft2(ifftshift(freq_image_masked_h));
+filteredImage_h = real(filteredImage_h);
+filteredImage_h = mat2gray(filteredImage_h);
+
+% Reconstruct HSV image with filtered hue and original saturation/value
+s_img = hsv_img(:,:,2);
+v_img = hsv_img(:,:,3);
+filteredImage_hsv = cat(3, filteredImage_h, s_img, v_img);
+
+% Convert back to RGB
+filteredImage_hsv_rgb = hsv2rgb(filteredImage_hsv);
+
+figure 
+imshow(filteredImage_hsv_rgb)
+title('Filtered Image - HSV Hue Channel Only')
+
 

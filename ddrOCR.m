@@ -644,15 +644,18 @@ format compact;
 
 hsv_img = rgb2hsv(img);
 
-r = img(:,:,3);
+% Extract individual channels
+r = img(:,:,1);
+g = img(:,:,2);
+b = img(:,:,3);
 
 figure
 imshow(r);
 
-% Compute the 2D fft.
-frequencyImage = fftshift(fft2(r));
+% Compute the 2D fft for red channel
+frequencyImage_r = fftshift(fft2(r));
 % Take log magnitude so we can see it better in the display.
-amplitudeImage = log(abs(frequencyImage));
+amplitudeImage = log(abs(frequencyImage_r));
 minValue = min(min(amplitudeImage))
 maxValue = max(max(amplitudeImage))
 figure
@@ -660,7 +663,7 @@ imshow(amplitudeImage, []);
 
 %% Mask creation
 top_left_mask = [399 551];  % Measured from imshow
-mask_radius = 20;
+mask_radius = 200;
 s = size(r);
 
 % Calculate center and offsets from the measured top-left position
@@ -682,19 +685,40 @@ mask = circles2mask([top_left_mask; top_right_mask; bottom_left_mask; bottom_rig
 figure 
 imshow(mask)
 
-freq_image_masked = frequencyImage;
-freq_image_masked(mask) = 0;
+% Apply mask to all three channels
+freq_image_masked_r = frequencyImage_r;
+freq_image_masked_r(mask) = 0;
 
-amplitudeImage2 = log(abs(freq_image_masked));
+frequencyImage_g = fftshift(fft2(g));
+freq_image_masked_g = frequencyImage_g;
+freq_image_masked_g(mask) = 0;
+
+frequencyImage_b = fftshift(fft2(b));
+freq_image_masked_b = frequencyImage_b;
+freq_image_masked_b(mask) = 0;
+
+amplitudeImage2 = log(abs(freq_image_masked_r));
 
 figure 
 imshow(amplitudeImage2, [minValue maxValue]);
 
-filteredImage = ifft2(ifftshift(freq_image_masked));
-% Take real part and ensure proper scaling
-filteredImage = real(filteredImage);
-filteredImage = mat2gray(filteredImage); 
+% Inverse transform all channels
+filteredImage_r = ifft2(ifftshift(freq_image_masked_r));
+filteredImage_r = real(filteredImage_r);
+filteredImage_r = mat2gray(filteredImage_r);
 
-amplitudeImage3 = abs(filteredImage);
+filteredImage_g = ifft2(ifftshift(freq_image_masked_g));
+filteredImage_g = real(filteredImage_g);
+filteredImage_g = mat2gray(filteredImage_g);
+
+filteredImage_b = ifft2(ifftshift(freq_image_masked_b));
+filteredImage_b = real(filteredImage_b);
+filteredImage_b = mat2gray(filteredImage_b);
+
+% Combine channels back into RGB image
+filteredImage_rgb = cat(3, filteredImage_r, filteredImage_g, filteredImage_b);
+
 figure 
-imshow(amplitudeImage3)
+imshow(filteredImage_rgb)
+
+

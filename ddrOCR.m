@@ -1,7 +1,7 @@
 %% INIT
 clear; close all;
 
-img = imread('ocr_test_9.jpg');
+img = imread('moire_img.png');
 figure
 imshow(img)
 % line = drawline;
@@ -70,7 +70,7 @@ sliderBW = (I(:,:,1) >= channel1Min ) & (I(:,:,1) <= channel1Max) & ...
     (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
 BW = sliderBW;
 
-BW = BW_HSV; % Force select HSV instead 
+%BW = BW_HSV; % Force select HSV instead 
 figure
 montage({grayImg, BW_HSV, BW})
  
@@ -774,5 +774,181 @@ filteredImage_hsv_rgb = hsv2rgb(filteredImage_hsv);
 figure 
 imshow(filteredImage_hsv_rgb)
 title('Filtered Image - HSV Hue Channel Only')
+
+%% Gaussian filter using Fourier Transform
+% Convert image to grayscale
+img_gray = rgb2gray(img);
+
+% Compute FFT
+fft_img = fftshift(fft2(img_gray));
+
+% Get image dimensions
+[rows, cols] = size(img_gray);
+
+% Create Gaussian kernel in frequency domain
+sigma = 30;  % Standard deviation - controls filter bandwidth
+[x, y] = meshgrid(-cols/2:cols/2-1, -rows/2:rows/2-1);
+gaussian_mask = exp(-(x.^2 + y.^2) / (2 * sigma^2));
+
+figure 
+mesh(gaussian_mask)
+
+% Normalize Gaussian kernel
+gaussian_mask = gaussian_mask / max(gaussian_mask(:));
+
+% Apply Gaussian filter in frequency domain
+fft_filtered = fft_img .* gaussian_mask;
+
+% Inverse FFT
+img_filtered = ifft2(ifftshift(fft_filtered));
+img_filtered = real(img_filtered);
+img_filtered = mat2gray(img_filtered);
+
+% Display results
+figure
+subplot(2, 2, 1)
+imshow(img_gray)
+title('Original Image')
+
+subplot(2, 2, 2)
+imshow(log(abs(fft_img) + 1), [])
+title('FFT - Original Image')
+
+subplot(2, 2, 3)
+imshow(gaussian_mask)
+title('Gaussian mask (Frequency Domain)')
+
+subplot(2, 2, 4)
+imshow(img_filtered)
+title('Gaussian Filtered Image')
+
+
+%% fitlering normally
+
+% TODO Try filter2
+% https://au.mathworks.com/matlabcentral/answers/269905-how-to-apply-a-2d-low-pass-filter-to-a-colored-image
+% or conv2
+% https://au.mathworks.com/matlabcentral/answers/75881-how-i-can-implement-lowpass-filter-on-image-using-matlab
+
+A = zeros(10);
+A(3:7,3:7) = ones(5);
+mesh(A) % this shows a meshplot
+
+filtered = imgaussfilt(img, 100, "FilterSize",5);
+figure 
+imshow(filtered)
+
+%% Filtering whole image with gaussian
+
+Ifiltered = imgaussfilt(img, 10);
+
+
+
+% Create better mask with LAB (more expensive)
+% Convert RGB image to chosen color space
+I = rgb2lab(Ifiltered);
+
+% Define thresholds for channel 1 based on histogram settings
+channel1Min = 0.000;
+channel1Max = 100.000;
+
+% Define thresholds for channel 2 based on histogram settings
+channel2Min = -61.360;
+channel2Max = -26.210;
+
+% Define thresholds for channel 3 based on histogram settings
+channel3Min = -31.648;
+channel3Max = 34.659;
+
+% Create mask based on chosen histogram thresholds
+sliderBW = (I(:,:,1) >= channel1Min ) & (I(:,:,1) <= channel1Max) & ...
+    (I(:,:,2) >= channel2Min ) & (I(:,:,2) <= channel2Max) & ...
+    (I(:,:,3) >= channel3Min ) & (I(:,:,3) <= channel3Max);
+BW = sliderBW;
+
+%BW = BW_HSV; % Force select HSV instead 
+figure
+montage({Ifiltered, BW_HSV, BW})
+ 
+
+% Do blob detection and filter small blobs
+figure
+[B,L] = bwboundaries(BW,'noholes');
+imshow(label2rgb(L, @jet, [.5 .5 .5]))
+
+figure 
+imshow(BW);
+hold on;
+BW2 = bwareafilt(BW, [3000, 50000]); %Filter out overly small and large blobs
+% ABove might not be necessary with imopen
+
+m = 360; n = 90;
+
+SE_open = strel("rectangle",[n m] .* 0.1);
+% The open operation makes us lose our angle so we have to be mindful of that
+% On second thought angle is not needed, use phone gyro
+BW3 = imopen(BW2, SE_open); 
+
+SE_close = strel("rectangle",[n m] .* 1.2);
+BW4 = imclose(BW3, SE_close);
+
+figure;
+montage({BW2, BW3, BW4}, "Size", [1 3], "BorderSize", 3, "BackgroundColor", "red");
+
+CC = bwconncomp(BW4);
+stats = regionprops(CC, ["BoundingBox"] );
+roi = vertcat(stats(:).BoundingBox);
+
+figure
+L4 = labelmatrix(CC);
+RGB_label = label2rgb(L4,@copper,"c","shuffle");
+imshow(RGB_label)
+
+numAdditionalPixels = 5;
+roi(:,1:2) = roi(:,1:2) - numAdditionalPixels;
+roi(:,3:4) = roi(:,3:4) + 2*numAdditionalPixels;
+
+roi_img = insertShape(img,"rectangle",roi,LineWidth=4);
+
+figure 
+imshow(roi_img)
+
+%% Ideal low pass filter
+
+size_img = 512;
+cutoff_radius = 50;  % adjust this to change cutoff frequency
+
+% Create frequency grid
+[X, Y] = meshgrid(1:size_img, 1:size_img);
+center = size_img/2 + 1;
+
+% Distance from center
+D = sqrt((X - center).^2 + (Y - center).^2);
+
+% Harsh circular cutoff - disc in frequency domain
+H_freq = double(D <= cutoff_radius);
+
+% Convert to spatial domain (this is the convolution kernel)
+h_spatial = ifft2(ifftshift(H_freq));
+h_spatial = real(fftshift(h_spatial));
+
+% Display
+figure;
+subplot(1,2,1);
+imshow(H_freq, []);
+title('Ideal Low-Pass Filter (Frequency Domain)');
+
+subplot(1,2,2);
+imshow(h_spatial(200:313, 200:313), []);
+title('Jinc Function Kernel (Spatial Domain)');
+
+% 3D view of the jinc kernel
+figure;
+surf(h_spatial(200:313, 200:313));
+shading interp;
+title('3D View of Jinc Kernel');
+xlabel('X');
+ylabel('Y');
+zlabel('Amplitude');
 
 

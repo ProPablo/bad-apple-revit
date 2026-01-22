@@ -650,7 +650,7 @@ g = img(:,:,2);
 b = img(:,:,3);
 
 figure
-imshow(r);
+imshow(img);
 
 % Compute the 2D fft for red channel
 frequencyImage_r = fftshift(fft2(r));
@@ -679,8 +679,10 @@ offset_y = center_y - top_left_mask(2);
 bottom_left_mask = [414	1068];
 %bottom_right_mask = [center_x + offset_x, center_y + offset_y];
 bottom_right_mask = [802 1053];
-mask = circles2mask([top_left_mask; top_right_mask; bottom_left_mask; bottom_right_mask], mask_radius, s);
-%mask = circles2mask([center_x center_y], mask_radius, s);
+%mask = circles2mask([top_left_mask; top_right_mask; bottom_left_mask; bottom_right_mask], mask_radius, s);
+
+mask = circles2mask([center_x center_y], mask_radius, s); % Ideal filter for including JUST the center
+mask = ~mask;
 
 figure 
 imshow(mask)
@@ -720,60 +722,6 @@ filteredImage_rgb = cat(3, filteredImage_r, filteredImage_g, filteredImage_b);
 
 figure 
 imshow(filteredImage_rgb)
-
-%% Moire filtering - HSV Hue channel only
-% Convert to HSV
-hsv_img = rgb2hsv(img);
-h = hsv_img(:,:,1);
-
-figure
-imshow(h);
-
-
-% Compute the 2D fft for hue channel
-frequencyImage_h = fftshift(fft2(h));
-% Take log magnitude so we can see it better in the display.
-amplitudeImage_h = log(abs(frequencyImage_h));
-minValue_h = min(min(amplitudeImage_h));
-maxValue_h = max(max(amplitudeImage_h));
-
-figure
-imshow(amplitudeImage_h, [minValue_h maxValue_h]);
-title('Hue Channel - Frequency Domain (Before Masking)');
-
-
-
-left_mask = [301 805]
-right_mask = [901 803]
-
-hsv_mask = circles2mask([left_mask; right_mask], 250, s);
-
-% Apply mask to hue channel
-freq_image_masked_h = frequencyImage_h;
-freq_image_masked_h(hsv_mask) = 0;
-
-amplitudeImage_h_masked = log(abs(freq_image_masked_h));
-
-figure 
-imshow(amplitudeImage_h_masked, [minValue_h maxValue_h]);
-title('Hue Channel - Frequency Domain (After Masking)');
-
-% Inverse transform hue channel
-filteredImage_h = ifft2(ifftshift(freq_image_masked_h));
-filteredImage_h = real(filteredImage_h);
-filteredImage_h = mat2gray(filteredImage_h);
-
-% Reconstruct HSV image with filtered hue and original saturation/value
-s_img = hsv_img(:,:,2);
-v_img = hsv_img(:,:,3);
-filteredImage_hsv = cat(3, filteredImage_h, s_img, v_img);
-
-% Convert back to RGB
-filteredImage_hsv_rgb = hsv2rgb(filteredImage_hsv);
-
-figure 
-imshow(filteredImage_hsv_rgb)
-title('Filtered Image - HSV Hue Channel Only')
 
 %% Gaussian filter using Fourier Transform
 % Convert image to grayscale
@@ -838,10 +786,27 @@ filtered = imgaussfilt(img, 100, "FilterSize",5);
 figure 
 imshow(filtered)
 
-%% Filtering whole image with gaussian
+%% Fitlering image with gaussian and doing rest of roi morphology
 
-Ifiltered = imgaussfilt(img, 10);
+% Note: this works actually relatively well for moire noise especially the
+% median filtering. 
 
+
+Ifiltered = imgaussfilt(img, 1.5);
+
+medfilt_window = [20, 20];
+
+% Apply medfilt2 to each RGB channel separately
+r_filtered = medfilt2(Ifiltered(:,:,1), medfilt_window);
+g_filtered = medfilt2(Ifiltered(:,:,2), medfilt_window);
+b_filtered = medfilt2(Ifiltered(:,:,3), medfilt_window);
+
+% Combine filtered channels back into RGB image
+Ifiltered = cat(3, r_filtered, g_filtered, b_filtered);
+
+
+
+%Ifiltered = filteredImage_rgb; % This is result from previous 
 
 
 % Create better mask with LAB (more expensive)
@@ -868,7 +833,7 @@ BW = sliderBW;
 
 %BW = BW_HSV; % Force select HSV instead 
 figure
-montage({Ifiltered, BW_HSV, BW})
+montage({Ifiltered, BW})
  
 
 % Do blob detection and filter small blobs
@@ -884,12 +849,12 @@ BW2 = bwareafilt(BW, [3000, 50000]); %Filter out overly small and large blobs
 
 m = 360; n = 90;
 
-SE_open = strel("rectangle",[n m] .* 0.1);
+SE_open = strel("rectangle", round([n m] .* 0.1));
 % The open operation makes us lose our angle so we have to be mindful of that
 % On second thought angle is not needed, use phone gyro
 BW3 = imopen(BW2, SE_open); 
 
-SE_close = strel("rectangle",[n m] .* 1.2);
+SE_close = strel("rectangle", round([n m] .* 1.1));
 BW4 = imclose(BW3, SE_close);
 
 figure;

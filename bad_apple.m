@@ -4,12 +4,38 @@ bad_img = imread('bad/0004.png');
 gray_img = rgb2gray(bad_img);
 BW = imbinarize(gray_img, 'global'); % we dont need adaptive here, adaptive is good for eg a half lit page
 BW2 = imcomplement(BW); % invert selection
+
+figure;
+montage({bad_img,BW,BW2});
+
+[B,L, n] = bwboundaries(BW2);
+
+figure
+imshow(label2rgb(L, @jet, [.5 .5 .5]))
+hold on
+
+num_frames = 2;
+
+simple_bounds = cell(length(B), num_frames);
+
+for k = 1:length(B)
+   boundary = B{k};
+   plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
+
+   %Simplify boundary
+   simple_bounds{1, k} = downsample(boundary, 4);
+end
+
+save('bad_apple.mat', 'simple_bounds', "num_frames");
+
+
+%% Edge detection
+
 edges = edge(BW2);
 [y, x] = find(edges == 1); % find gives row, cols
 figure;
 plot(y,x)
-figure;
-montage({bad_img,BW,BW2});
+
 
 figure;
 scatter(x,-y)
@@ -37,11 +63,11 @@ for k = 1:length(B)
    plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
 end
 
-%% Simplify the biggest region 
+%% Simplify the biggest region
 [B,L, n] = bwboundaries(BW2, 'noholes');
 lengths = [];
 for k = 1:length(B)
-    lengths = [lengths, length(B{k})];
+   lengths = [lengths, length(B{k})];
 end
 [~, idx] = max(lengths);
 biggest = B{idx};
@@ -69,7 +95,7 @@ plot(downsampled(:,2), -downsampled(:,1), 'r-', 'LineWidth', 2)
 legend('Original', 'Downsampled')
 axis equal
 
-%% Need closed shapes and countours instead 
+%% Need closed shapes and countours instead
 CC = bwconncomp(BW2);
 stats = regionprops(CC, "all");
 
@@ -90,7 +116,7 @@ title('Largest Region Contour')
 
 %% Non pixels version (convex hull)
 boundary = stats(idx_largest).ConvexHull;
- 
+
 figure
 imshow(bad_img)
 hold on
@@ -100,7 +126,8 @@ title('Convex Hull of Largest Region')
 %% Compare downsampling methods
 boundary = biggest;
 
-% Method 1: Simple downsample (can be jaggy)
+% Method 1: Simple downsample (can be jaggy) (does the same thing as
+% dowsample command)
 factor = 10;
 boundary_downsampled = boundary(1:factor:end, :);
 

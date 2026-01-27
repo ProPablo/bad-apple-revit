@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36401.2 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BadRevitPlugin", "BadRevitPlugin\BadRevitPlugin.csproj", "{77A1C85E-4B5A-4148-AEEE-47B64AD2AFCD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestBed", "TestBed\TestBed.csproj", "{E05D237B-63B1-4E2E-9ABD-69D09DDA3797}"
+	ProjectSection(ProjectDependencies) = postProject
+		{77A1C85E-4B5A-4148-AEEE-47B64AD2AFCD} = {77A1C85E-4B5A-4148-AEEE-47B64AD2AFCD}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{77A1C85E-4B5A-4148-AEEE-47B64AD2AFCD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{77A1C85E-4B5A-4148-AEEE-47B64AD2AFCD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{77A1C85E-4B5A-4148-AEEE-47B64AD2AFCD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{77A1C85E-4B5A-4148-AEEE-47B64AD2AFCD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E05D237B-63B1-4E2E-9ABD-69D09DDA3797}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E05D237B-63B1-4E2E-9ABD-69D09DDA3797}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E05D237B-63B1-4E2E-9ABD-69D09DDA3797}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E05D237B-63B1-4E2E-9ABD-69D09DDA3797}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1380BBB4-CE62-4430-9CC0-E1312677614A}
+	EndGlobalSection
+EndGlobal

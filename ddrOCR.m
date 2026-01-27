@@ -638,6 +638,15 @@ fprintf('Most dominant hue value: %.3f\n', dominant_hue);
 %% Moire filtering
 img = imread('moire_img.png');
 
+
+[rows, cols, ~] = size(img);
+
+% Normalization weights
+x = abs((0:cols-1) - cols/2).^0.5;
+y = abs((0:rows-1) - rows/2).^0.5;
+coefs = max((x + y').^2, 0.01);
+
+
 workspace;  % Make sure the workspace panel is showing.
 format long g;
 format compact;
@@ -649,13 +658,31 @@ r = img(:,:,1);
 g = img(:,:,2);
 b = img(:,:,3);
 
+% ONLY do this for channel splitting freq domain impl for hsv, remember to change img back for visualisation
+% r = hsv_img(:,:,1);
+% g = hsv_img(:,:,2);
+% b = hsv_img(:,:,3);
+
+
 figure
 imshow(img);
+
+threshold = 10;
 
 % Compute the 2D fft for red channel
 frequencyImage_r = fftshift(fft2(r));
 % Take log magnitude so we can see it better in the display.
 amplitudeImage = log(abs(frequencyImage_r));
+spectrum = 20 * log(abs(frequencyImage_r) .* coefs);
+
+threshImage = spectrum > threshold;
+minValue = min(min(spectrum));
+maxValue = max(max(spectrum));
+
+figure
+imshow(threshImage, [minValue maxValue])
+
+
 minValue = min(min(amplitudeImage))
 maxValue = max(max(amplitudeImage))
 figure
@@ -663,7 +690,7 @@ imshow(amplitudeImage, []);
 
 %% Mask creation
 top_left_mask = [399 551];  % Measured from imshow
-mask_radius = 200;
+mask_radius = 150;
 s = size(r);
 
 % Calculate center and offsets from the measured top-left position
@@ -675,7 +702,7 @@ offset_y = center_y - top_left_mask(2);
 % Create four corners symmetrically around the center using the measured top-left
 %top_right_mask = [center_x + offset_x, center_y - offset_y];
 %bottom_left_mask = [center_x - offset_x, center_y + offset_y];
- top_right_mask= [787 535];
+top_right_mask= [787 535];
 bottom_left_mask = [414	1068];
 %bottom_right_mask = [center_x + offset_x, center_y + offset_y];
 bottom_right_mask = [802 1053];
@@ -720,6 +747,8 @@ filteredImage_b = mat2gray(filteredImage_b);
 % Combine channels back into RGB image
 filteredImage_rgb = cat(3, filteredImage_r, filteredImage_g, filteredImage_b);
 
+%filteredImage_rgb = hsv2rgb(filteredImage_rgb); % iF the rgb channels were actually hsv
+
 figure 
 imshow(filteredImage_rgb)
 
@@ -736,6 +765,7 @@ fft_img = fftshift(fft2(img_gray));
 % Create Gaussian kernel in frequency domain
 sigma = 30;  % Standard deviation - controls filter bandwidth
 [x, y] = meshgrid(-cols/2:cols/2-1, -rows/2:rows/2-1);
+% https://www.geeksforgeeks.org/machine-learning/gaussian-kernel/
 gaussian_mask = exp(-(x.^2 + y.^2) / (2 * sigma^2));
 
 figure 
@@ -791,10 +821,13 @@ imshow(filtered)
 % Note: this works actually relatively well for moire noise especially the
 % median filtering. 
 
+Ifiltered = filteredImage_rgb; % This is result from previous 
 
-Ifiltered = imgaussfilt(img, 1.5);
+%Ifiltered = img; 
 
-medfilt_window = [20, 20];
+Ifiltered = imgaussfilt(Ifiltered, 1.5);
+
+medfilt_window = [15, 15];
 
 % Apply medfilt2 to each RGB channel separately
 r_filtered = medfilt2(Ifiltered(:,:,1), medfilt_window);
@@ -805,21 +838,17 @@ b_filtered = medfilt2(Ifiltered(:,:,3), medfilt_window);
 Ifiltered = cat(3, r_filtered, g_filtered, b_filtered);
 
 
-
-%Ifiltered = filteredImage_rgb; % This is result from previous 
-
-
 % Create better mask with LAB (more expensive)
 % Convert RGB image to chosen color space
 I = rgb2lab(Ifiltered);
 
 % Define thresholds for channel 1 based on histogram settings
-channel1Min = 0.000;
+channel1Min = 50.000;
 channel1Max = 100.000;
 
 % Define thresholds for channel 2 based on histogram settings
 channel2Min = -61.360;
-channel2Max = -26.210;
+channel2Max = -17.210;
 
 % Define thresholds for channel 3 based on histogram settings
 channel3Min = -31.648;
@@ -917,3 +946,68 @@ ylabel('Y');
 zlabel('Amplitude');
 
 
+%% Descreen algo (Eeeh doesnt work that ell)
+% Based oon https://github.com/6o6o/fft-descreen/tree/master
+
+
+
+% FFT-based descreen filter for LCD moire removal
+img = double(img);
+
+[rows, cols, ~] = size(img);
+
+% Normalization weights
+x = abs((0:cols-1) - cols/2).^0.5;
+y = abs((0:rows-1) - rows/2).^0.5;
+coefs = max((x + y').^2, 0.01);
+
+% Middle preservation ellipse
+mid = 8;
+ew = floor(cols/mid);
+eh = floor(rows/mid);
+[X, Y] = meshgrid(-ew:ew, -eh:eh);
+ellipse_mid = double((X/ew).^2 + (Y/eh).^2 <= 1);
+middle = zeros(rows, cols);
+pw = floor((cols - ew*2)/2);
+ph = floor((rows - eh*2)/2);
+middle(ph+1:ph+size(ellipse_mid,1), pw+1:pw+size(ellipse_mid,2)) = ellipse_mid;
+
+% Dilation kernel
+rad = 6;
+[X, Y] = meshgrid(-rad:rad, -rad:rad);
+kernel = double((X/rad).^2 + (Y/rad).^2 <= 1);
+
+% Process each channel
+for i = 1:3
+    % FFT
+    fftimg = fft2(img(:,:,i));
+    fftimg = fftshift(fftimg);
+    
+    % Magnitude spectrum
+    spectrum = 20 * log(abs(fftimg) .* coefs);
+    
+    % Threshold
+    threshold = 92;
+    thresh = double(max(0, spectrum) > threshold);
+    thresh = thresh .* (1 - middle);
+    
+    % Dilate
+    thresh = imdilate(thresh, kernel);
+    
+    % Gaussian blur
+    thresh = imgaussfilt(thresh, rad/3);
+    
+    % Apply mask
+    thresh = 1 - thresh;
+    fftimg = fftimg .* thresh;
+    
+    % Inverse FFT
+    fftimg = ifftshift(fftimg);
+    out_img(:,:,i) = abs(ifft2(fftimg));
+end
+
+figure 
+imshow(fftimg)
+
+figure
+imshow(out_img)

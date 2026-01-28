@@ -20,6 +20,13 @@ namespace BadRevitPlugin
             {
                 BadApple.Instance = new BadAppleInstance();
                 BadApple.Application = commandData.Application;
+                var res = BadApple.Instance.InitResources(commandData.Application.ActiveUIDocument.Document);
+                if (res != Result.Succeeded)
+                {
+                    BadApple.Instance = null;
+                    return res;
+                }
+
                 return BadApple.Instance.DrawFirstFrame();
             }
             else

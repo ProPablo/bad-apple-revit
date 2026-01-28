@@ -1,5 +1,22 @@
 %% bad apple
+
+% shoutout to mxb161 for dis
+bad_vid = VideoReader('bad-apple.mp4') 
+
+desired_framerate = 10;
+
+single_frame = read(bad_vid, 100);
+f = figure('visible', true);
+
+imshow(single_frame);
+
+
+%% bad apple single frame
 bad_img = imread('bad/0004.png');
+%bad_img = imread('bad/0025.png');
+% bad_img = imread('bad/0058.png'); % Curve length is too small for Revit's tolerance (as identified by Application.ShortCurveTolerance).
+% start and end points are the same here
+
 
 gray_img = rgb2gray(bad_img);
 BW = imbinarize(gray_img, 'global'); % we dont need adaptive here, adaptive is good for eg a half lit page
@@ -16,8 +33,14 @@ hold on
 
 num_frames = 2;
 
+MIN_SIMPLIFIED_POINTS = 4;
+
 simple_bounds = cell(length(B), num_frames);
 centroids = cell(length(B), num_frames);
+boundary_nums = zeros(1, num_frames);
+
+
+boundary_num = 1;
 
 for k = 1:length(B)
    boundary = B{k};
@@ -32,13 +55,34 @@ for k = 1:length(B)
    %Simplify boundary
    simplified = downsample(boundary, 4);
    simplified = simplified(:, [2, 1]) .* [1, -1]; % Convert to (x, y) and flip y (TODO this does flip but makes y negative)
-   
-   simple_bounds{1, k} = simplified; 
-   centroids{1, k} = [x,-y];
+   simplified_size = size(simplified);
+   if (simplified_size(1) >= MIN_SIMPLIFIED_POINTS)
+      simple_bounds{1, boundary_num} = simplified; 
+      centroids{1, boundary_num} = [x,-y];
+      boundary_num = boundary_num + 1;
+   end
 end
 
-save('bad_apple.mat', 'simple_bounds', "num_frames", "centroids");
+save('bad_apple.mat', 'simple_bounds', "num_frames", "centroids", "boundary_nums");
 
+%% First boundary debugging
+
+figure;
+hold on;
+boundary = B{1};
+plot(boundary(:,2), boundary(:,1), 'g', 'LineWidth', 2)
+
+% By default bwboundaries provides coords in y, x
+ps = polyshape(boundary(:,2), boundary(:,1))
+plot(ps);
+%This xy is correct
+[x,y] = centroid(ps);
+
+plot(x,y,'r*')
+%Simplify boundary
+simplified = downsample(boundary, 4);
+simplified = simplified(:, [2, 1]) .* [1, -1]; % Convert to (x, y) and flip y (TODO this does flip but makes y negative)
+simplified_size = size(simplified);
 
 %% Edge detection
 

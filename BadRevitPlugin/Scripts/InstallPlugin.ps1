@@ -1,6 +1,7 @@
 
 param(
-    [string]$2021Path = "C:\ProgramData\Autodesk\Revit\Addins\2021"
+    # [string]$2021Path = "C:\ProgramData\Autodesk\Revit\Addins\2021"
+    [string]$2022Path = "C:\ProgramData\Autodesk\Revit\Addins\2022"
 )
 
 
@@ -31,7 +32,7 @@ $fullPath = Resolve-Path -Path $fullPath
 $fullPathString = $fullPath.Path
 
 $assemblyNode.InnerText = $fullPathString
-$saveLocation = Join-Path -Path $2021Path -ChildPath "BadRevitPlugin.addin"
+$saveLocation = Join-Path -Path $2022Path -ChildPath "BadRevitPlugin.addin"
 $xml.Save($saveLocation)
 
 Write-Host "Addin Installation in $($saveLocation) is at pointed to $($assemblyNode.InnerText)"

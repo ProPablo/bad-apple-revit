@@ -22,14 +22,19 @@ centroids = cell(length(B), num_frames);
 for k = 1:length(B)
    boundary = B{k};
    plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
-
+   
+   % By default bwboundaries provides coords in y, x
    ps = polyshape(boundary(:,2), boundary(:,1));
+   %This xy is correct
    [x,y] = centroid(ps);
 
    plot(x,y,'r*')
    %Simplify boundary
-   simple_bounds{1, k} = downsample(boundary, 4);
-   centroids{1, k} = [x,y];
+   simplified = downsample(boundary, 4);
+   simplified = simplified(:, [2, 1]) .* [1, -1]; % Convert to (x, y) and flip y (TODO this does flip but makes y negative)
+   
+   simple_bounds{1, k} = simplified; 
+   centroids{1, k} = [x,-y];
 end
 
 save('bad_apple.mat', 'simple_bounds', "num_frames", "centroids");

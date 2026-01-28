@@ -13,6 +13,7 @@ namespace BadRevitPlugin
         }
 
         public ICellArray boundaries = null;
+        public ICellArray centroids = null;
 
         public void Load()
         {
@@ -36,6 +37,7 @@ namespace BadRevitPlugin
             
             var frameCount = matFile["num_frames"].Value.ConvertToDoubleArray()[0];
             boundaries = matFile["simple_bounds"].Value as ICellArray;
+            centroids = matFile["centroids"].Value as ICellArray;
 
             IArrayOf<double> firstFrameBoundary = boundaries[0, 0] as IArrayOf<double>;
 

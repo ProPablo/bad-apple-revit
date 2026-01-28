@@ -47,6 +47,8 @@ namespace BadRevitPlugin
                 new XYZ(0, 15, 0)
             };
 
+            //points = boundaryPoints;
+
             // Get the active view's level
             Level level = doc.GetElement(doc.ActiveView.GenLevel.Id) as Level;
             if (level == null)
@@ -56,9 +58,10 @@ namespace BadRevitPlugin
             }
             Transaction transaction = new Transaction(doc);
 
-            transaction.Start();
+            transaction.Start("First frame bad apple");
 
             double wallHeight = 10.0; // 10 feet
+            var wallType = GetWallType();
 
             // Create walls between consecutive points
             for (int i = 0; i < points.Count; i++)
@@ -78,9 +81,13 @@ namespace BadRevitPlugin
             return Result.Succeeded;
         }
 
+
+        /// <summary>
+        /// This gets the walltype when there are no instances
+        /// </summary>
+        /// <returns></returns>
         WallType GetWallType()
         {
-
             var doc = BadApple.Application.ActiveUIDocument.Document;
             // Get a basic wall type
             WallType wallType = new FilteredElementCollector(doc)

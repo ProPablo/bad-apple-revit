@@ -22,8 +22,12 @@ namespace BadRevitPlugin
                 BadApple.Application = commandData.Application;
                 return BadApple.Instance.DrawFirstFrame();
             }
+            else
+            {
+                return BadApple.Instance.DrawFirstFrame();
+            }
             // TODO cancel the operation here
-            else return Result.Cancelled;
+            return Result.Cancelled;
         }
     }
 }

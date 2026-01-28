@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+	<AddIn Type="Application">
+		<Name>BadRevit</Name>
+		<Assembly>CHANGE THIS TO THE DEBUG BUILD DIR</Assembly>
+		<AddInId>beb5d5b3-7691-4ffc-881b-9c0afd0089c3</AddInId>
+		<FullClassName>BadRevitPlugin.BadApple</FullClassName>
+		<VendorId>Kongroo.xyz</VendorId>
+		<VendorDescription>Where we solve problems noone asked for</VendorDescription>
+	</AddIn>
+</RevitAddIns>

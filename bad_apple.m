@@ -17,16 +17,22 @@ hold on
 num_frames = 2;
 
 simple_bounds = cell(length(B), num_frames);
+centroids = cell(length(B), num_frames);
 
 for k = 1:length(B)
    boundary = B{k};
    plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
 
+   ps = polyshape(boundary(:,2), boundary(:,1));
+   [x,y] = centroid(ps);
+
+   plot(x,y,'r*')
    %Simplify boundary
    simple_bounds{1, k} = downsample(boundary, 4);
+   centroids{1, k} = [x,y];
 end
 
-save('bad_apple.mat', 'simple_bounds', "num_frames");
+save('bad_apple.mat', 'simple_bounds', "num_frames", "centroids");
 
 
 %% Edge detection

@@ -38,7 +38,7 @@ namespace BadRevitPlugin
             td.MainContent = "Click 'Show Details' to view full path.";
             td.ExpandedContent = matFileLoc;
 
-            td.Show();
+            //td.Show();
 
 
             IMatFile matFile;

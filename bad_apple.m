@@ -47,6 +47,7 @@ for k = 1:length(B)
    boundary = B{k};
    plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
 
+   boundary = downsample(boundary, 2);
    % By default bwboundaries provides coords in y, x
    ps = polyshape(boundary(:,2), boundary(:,1))
    %Sometimes you get sub regions TODO determine if we need to use because
@@ -57,13 +58,21 @@ for k = 1:length(B)
        continue
    end
 
-   plot(x,y,'r*')
-   plot(ps)
+   % Solves the colinnear vertex problem for this frame
+   % if (k ==1)
+   %    ps.Vertices(663,:) = [];
+   % end
+
+    ps = polybuffer(ps, 0.5, "JointType","square");
+    ps = simplify(ps, "KeepCollinearPoints",false); % pre sure this is doing nothing but just in case
 
    regs = regions(ps);
    main_poly = regs(1);
    %This xy is correct
-   [x,y] = centroid(ps);
+   [x,y] = centroid(main_poly);
+   
+   plot(x,y,'r*')
+   plot(ps)
 
    simplified = main_poly.Vertices .* [1, -1];
    simplified_size = size(simplified);
@@ -109,7 +118,7 @@ for k = 1:length(B)
    
    plot(x,y,'r*')
    %Simplify boundary
-   simplified = downsample(boundary, 4);
+   simplified = downsample(boundary, 1);
    simplified = simplified(:, [2, 1]) .* [1, -1]; % Convert to (x, y) and flip y (TODO this does flip but makes y negative)
    simplified_size = size(simplified);
    
@@ -129,10 +138,21 @@ hold on;
 boundary = B{1};
 plot(boundary(:,2), boundary(:,1), 'g', 'LineWidth', 2)
 
+
+% This seems to be the bad vertex (collinear points)
+% find(ps.Vertices(:,1) == 243 & ps.Vertices(:,2) == 6 )
+
+
+
 % By default polyshape simplifies
 %ps = polyshape(boundary(:,2), boundary(:,1), "Simplify", false)
 ps = polyshape(boundary(:,2), boundary(:,1))
 ps = sortregions(ps,'perimeter','descend');
+
+ps = polybuffer(ps, 0.5, "JointType","square");
+%ps = polybuffer(ps, -0.1);
+%ps.Vertices(663,:) = []; % Removing problematic vertex for frame 0058 works
+
 ps = simplify(ps, "KeepCollinearPoints",false);
 %ps = rmslivers(ps,1); % THis techinically fixes the problem
 plot(ps);

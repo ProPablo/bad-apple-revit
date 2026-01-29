@@ -16,23 +16,23 @@ namespace BadRevitPlugin
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            if (BadApple.Instance == null)
+            //if (BadApple.Instance == null)
             {
                 BadApple.Instance = new BadAppleInstance();
                 BadApple.Application = commandData.Application;
                 var res = BadApple.Instance.InitResources(commandData.Application.ActiveUIDocument.Document);
-                if (res != Result.Succeeded)
-                {
-                    BadApple.Instance = null;
-                    return res;
-                }
+                //if (res != Result.Succeeded)
+                //{
+                //    BadApple.Instance = null;
+                //    return res;
+                //}
 
                 return BadApple.Instance.DrawFirstFrame();
             }
-            else
-            {
-                return BadApple.Instance.DrawFirstFrame();
-            }
+            //else
+            //{
+            //    return BadApple.Instance.DrawFirstFrame();
+            //}
             // TODO cancel the operation here
             return Result.Cancelled;
         }

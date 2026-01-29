@@ -106,11 +106,13 @@ namespace BadRevitPlugin
                 curveArray.Append(Line.CreateBound(start, end));
             }
 
+
             doc.Create.NewRoom(level, uvPoint);
 
             var newCeiling = Ceiling.Create(doc, new List<CurveLoop> { profile }, ceilingType.Id, level.Id);
             Parameter newCeilingParam = newCeiling.get_Parameter(BuiltInParameter.CEILING_HEIGHTABOVELEVEL_PARAM);
             newCeilingParam.Set(ceilingHeight);
+
 
             return Result.Succeeded;
 
@@ -130,23 +132,35 @@ namespace BadRevitPlugin
             }
 
 
-            Transaction transaction = new Transaction(doc);
 
-            transaction.Start("First frame bad apple");
+            // Disable automatic regeneration
+            using (Transaction transaction = new Transaction(doc))
+            {
 
-            //Record Time taken 
-            //TODO use Stopwatch to record time instead (its faster ig)
-            var startTime = DateTime.Now;
-            DrawSingleBoundary(boundaryPoints, doc);
-            var timeTaken = DateTime.Now - startTime;
-            lastTimeRun = DateTime.Now;
-            TaskDialog.Show(
-                "Performance",
-                $"Operation completed in:\n{timeTaken.TotalMilliseconds:F0} ms\n" +
-                $"({timeTaken.TotalSeconds:F2} seconds)"
-            );
+                //// Configure transaction to suppress failure messages
+                FailureHandlingOptions failureOptions = transaction.GetFailureHandlingOptions();
+                failureOptions.SetFailuresPreprocessor(new WarningSwallower());
+                transaction.SetFailureHandlingOptions(failureOptions);
+                transaction.Start("Bad apple revit frame 1");
 
-            transaction.Commit();
+
+                var startTime = DateTime.Now;
+                DrawSingleBoundary(boundaryPoints, doc);
+                var timeTaken = DateTime.Now - startTime;
+                lastTimeRun = DateTime.Now;
+
+                transaction.Commit();
+
+                TaskDialog.Show(
+                    "Performance",
+                    $"Operation completed in:\n{timeTaken.TotalMilliseconds:F0} ms\n" +
+                    $"({timeTaken.TotalSeconds:F2} seconds)"
+                );
+            }
+
+
+            //transaction.Commit();
+
 
             return Result.Succeeded;
         }
@@ -172,4 +186,40 @@ namespace BadRevitPlugin
         }
 
     }
+
+    // Failure preprocessor to suppress warnings
+    public class WarningSwallower : IFailuresPreprocessor
+    {
+        public FailureProcessingResult PreprocessFailures(FailuresAccessor failuresAccessor)
+        {
+            IList<FailureMessageAccessor> failures = failuresAccessor.GetFailureMessages();
+
+            foreach (FailureMessageAccessor failure in failures)
+            {
+                FailureSeverity severity = failure.GetSeverity();
+
+                if (severity == FailureSeverity.Warning)
+                {
+                    // Delete warnings
+                    failuresAccessor.DeleteWarning(failure);
+                }
+                else if (severity == FailureSeverity.Error)
+                {
+                    // For errors, try to resolve them by deleting the problematic elements
+                    // or just continue and let Revit handle them
+
+                    // Automatically delete the failing elements (same as clicking "Delete Instances")
+                    //ICollection<ElementId> failingElementIds = failure.GetFailingElementIds();
+                    //failuresAccessor.DeleteElements(failingElementIds.ToList());
+
+
+                    failure.SetCurrentResolutionType(FailureResolutionType.DeleteElements);
+                    failuresAccessor.ResolveFailure(failure);
+                }
+            }
+
+            return FailureProcessingResult.Continue;
+        }
+    }
+
 }

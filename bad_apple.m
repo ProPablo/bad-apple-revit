@@ -10,11 +10,10 @@ f = figure('visible', true);
 
 imshow(single_frame);
 
-
-%% bad apple single frame
-bad_img = imread('bad/0004.png');
+%% bad apple single frame read
+%bad_img = imread('bad/0004.png');
 %bad_img = imread('bad/0025.png');
-% bad_img = imread('bad/0058.png'); % Curve length is too small for Revit's tolerance (as identified by Application.ShortCurveTolerance).
+ bad_img = imread('bad/0058.png'); % Curve length is too small for Revit's tolerance (as identified by Application.ShortCurveTolerance).
 % start and end points are the same here
 
 
@@ -27,8 +26,10 @@ montage({bad_img,BW,BW2});
 
 [B,L, n] = bwboundaries(BW2);
 
+
+%% simplified with polyshape only output 
+
 figure
-imshow(label2rgb(L, @jet, [.5 .5 .5]))
 hold on
 
 num_frames = 2;
@@ -45,17 +46,73 @@ boundary_num = 1;
 for k = 1:length(B)
    boundary = B{k};
    plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
+
+   % By default bwboundaries provides coords in y, x
+   ps = polyshape(boundary(:,2), boundary(:,1))
+   %Sometimes you get sub regions TODO determine if we need to use because
+   %ps by default splits verteces by NaNs
+   ps = sortregions(ps,'perimeter','descend');
+    
+   if (ps.NumRegions == 0)
+       continue
+   end
+
+   plot(x,y,'r*')
+   plot(ps)
+
+   regs = regions(ps);
+   main_poly = regs(1);
+   %This xy is correct
+   [x,y] = centroid(ps);
+
+   simplified = main_poly.Vertices .* [1, -1];
+   simplified_size = size(simplified);
+   
+   if (simplified_size(1) <= MIN_SIMPLIFIED_POINTS) 
+      continue
+   end
+  
+   simple_bounds{1, boundary_num} = simplified; 
+   centroids{1, boundary_num} = [x,-y];
+   boundary_num = boundary_num + 1;
+   
+end
+
+save('bad_apple.mat', 'simple_bounds', "num_frames", "centroids", "boundary_nums");
+
+
+
+%% simplified with downsample
+
+figure
+imshow(label2rgb(L, @jet, [.5 .5 .5]))
+hold on
+
+num_frames = 2;
+
+MIN_SIMPLIFIED_POINTS = 4;
+
+simple_bounds = cell(length(B), num_frames);
+centroids = cell(length(B), num_frames);
+boundary_nums = zeros(1, num_frames);
+
+boundary_num = 1;
+
+for k = 1:length(B)
+   boundary = B{k};
+   plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
    
    % By default bwboundaries provides coords in y, x
    ps = polyshape(boundary(:,2), boundary(:,1));
    %This xy is correct
    [x,y] = centroid(ps);
-
+   
    plot(x,y,'r*')
    %Simplify boundary
    simplified = downsample(boundary, 4);
    simplified = simplified(:, [2, 1]) .* [1, -1]; % Convert to (x, y) and flip y (TODO this does flip but makes y negative)
    simplified_size = size(simplified);
+   
    if (simplified_size(1) >= MIN_SIMPLIFIED_POINTS)
       simple_bounds{1, boundary_num} = simplified; 
       centroids{1, boundary_num} = [x,-y];
@@ -72,17 +129,37 @@ hold on;
 boundary = B{1};
 plot(boundary(:,2), boundary(:,1), 'g', 'LineWidth', 2)
 
-% By default bwboundaries provides coords in y, x
+% By default polyshape simplifies
+%ps = polyshape(boundary(:,2), boundary(:,1), "Simplify", false)
 ps = polyshape(boundary(:,2), boundary(:,1))
+ps = sortregions(ps,'perimeter','descend');
+ps = simplify(ps, "KeepCollinearPoints",false);
+%ps = rmslivers(ps,1); % THis techinically fixes the problem
 plot(ps);
 %This xy is correct
 [x,y] = centroid(ps);
 
 plot(x,y,'r*')
-%Simplify boundary
-simplified = downsample(boundary, 4);
-simplified = simplified(:, [2, 1]) .* [1, -1]; % Convert to (x, y) and flip y (TODO this does flip but makes y negative)
-simplified_size = size(simplified);
+
+regs = regions(ps);   % split into 4 separate polyshapes
+
+figure; hold on
+cmap = lines(numel(regs));
+
+for k = 1:numel(regs)
+    plot(regs(k), ...
+        'FaceColor', cmap(k,:), ...
+        'EdgeColor', 'k', ...
+        'FaceAlpha', 0.7);
+     [cx, cy] = centroid(regs(k));
+    text(cx, cy, num2str(k), ...
+        'HorizontalAlignment','center', ...
+        'FontSize',12, 'FontWeight','bold');
+end
+
+axis equal
+hold off
+
 
 %% Edge detection
 

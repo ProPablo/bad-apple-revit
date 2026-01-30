@@ -75,41 +75,59 @@ namespace BadRevitPlugin
             return Result.Succeeded;
         }
 
-        public Result DrawSingleBoundary(List<XYZ> boundaryPoints, Document doc)
+        public Result DrawSingleBoundary(RoomBoundary room, Document doc)
         {
+            var ceilingCurveLoops = new List<CurveLoop>();
 
-            CurveLoop profile = new CurveLoop();
+            // Create ceiling from your points
+            List<Curve> outerLoop = new();
             // Create walls between consecutive points
-            for (int i = 0; i < boundaryPoints.Count; i++)
+            for (int i = 0; i < room.MainOuterLoop.Count; i++)
             {
-                XYZ start = boundaryPoints[i];
-                XYZ end = boundaryPoints[(i + 1) % boundaryPoints.Count]; // Wrap around to close the loop
+                XYZ start = room.MainOuterLoop[i];
+                XYZ end = room.MainOuterLoop[(i + 1) % room.MainOuterLoop.Count]; // Wrap around to close the loop
 
                 Line wallLine = Line.CreateBound(start, end);
 
                 Wall wall = Wall.Create(doc, wallLine, wallType.Id, level.Id, wallHeight, 0, false, false);
 
-                profile.Append(wallLine);
+                outerLoop.Add(wallLine);
+            }
+
+            ceilingCurveLoops.Add(CurveLoop.Create(outerLoop));
+
+
+            foreach (var loop in room.InnerLoops)
+            {
+                List<Curve> innerLoop = new();
+                for (int i = 0; i < loop.Count; i++)
+                {
+                    XYZ start = loop[i];
+                    XYZ end = loop[(i + 1) % loop.Count]; // Wrap around to close the loop
+
+                    Line wallLine = Line.CreateBound(start, end);
+
+                    Wall wall = Wall.Create(doc, wallLine, wallType.Id, level.Id, wallHeight, 0, false, false);
+
+                    innerLoop.Add(wallLine);
+                }
+                ceilingCurveLoops.Add(CurveLoop.Create(innerLoop));
             }
 
 
-            var centroid = loader.centroids[0] as IArrayOf<double>;
+            UV uvPoint = room.centroid;
 
-            UV uvPoint = new UV(centroid[0], centroid[1]);
-
-            // Create ceiling from your points
-            CurveArray curveArray = new CurveArray();
-            for (int i = 0; i < boundaryPoints.Count; i++)
+            for (int i = 0; i < room.MainOuterLoop.Count; i++)
             {
-                XYZ start = boundaryPoints[i];
-                XYZ end = boundaryPoints[(i + 1) % boundaryPoints.Count];
-                curveArray.Append(Line.CreateBound(start, end));
+                XYZ start = room.MainOuterLoop[i];
+                XYZ end = room.MainOuterLoop[(i + 1) % room.MainOuterLoop.Count];
+                outerLoop.Add(Line.CreateBound(start, end));
             }
 
 
             doc.Create.NewRoom(level, uvPoint);
 
-            var newCeiling = Ceiling.Create(doc, new List<CurveLoop> { profile }, ceilingType.Id, level.Id);
+            var newCeiling = Ceiling.Create(doc, ceilingCurveLoops, ceilingType.Id, level.Id);
             Parameter newCeilingParam = newCeiling.get_Parameter(BuiltInParameter.CEILING_HEIGHTABOVELEVEL_PARAM);
             newCeilingParam.Set(ceilingHeight);
 
@@ -178,30 +196,18 @@ namespace BadRevitPlugin
                 //// Configure transaction to suppress failure messages
                 transaction.Start("Bad apple revit frame 1");
 
-                var numBoundaries = loader.boundaries.Dimensions[1];
-
-                numBoundaries = 1;
+                var frame = loader.context.frames[0];
+                var numBoundaries = frame.Rooms.Count;
 
                 for (int i = 0; i < numBoundaries; i++)
                 {
-
-                    IArrayOf<double> firstFrameBoundarydoubles = loader.boundaries[0, i] as IArrayOf<double>;
-                    var numPoints = firstFrameBoundarydoubles.Dimensions[0];
-
-                    List<XYZ> boundaryPoints = new();
-
-                    for (int j = 0; j < numPoints; j++)
-                    {
-                        boundaryPoints.Add(new XYZ(firstFrameBoundarydoubles[j, 0], firstFrameBoundarydoubles[j, 1], 0));
-                    }
+                    var room = frame.Rooms[i];
 
                     SubTransaction subTransaction = new SubTransaction(doc);
-                    //string transactionName = $"Boundary {i} setup"; // Not needed
                     subTransaction.Start();
 
                     var startTime = DateTime.Now;
-                    //DrawSingleBoundary(boundaryPoints, doc);
-                    TestCeiling();
+                    DrawSingleBoundary(room, doc);
                     var timeTaken = DateTime.Now - startTime;
                     lastTimeRun = DateTime.Now;
 

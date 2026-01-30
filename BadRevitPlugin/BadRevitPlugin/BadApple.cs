@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -33,11 +34,22 @@ namespace BadRevitPlugin
             application.CreateRibbonTab(tabName);
             var title = "Bad Apple";
 
-            var panel = application.CreateRibbonPanel(tabName, title);
+            RibbonPanel panel = application.CreateRibbonPanel(tabName, title);
 
             panel.Name = title;
             panel.Title = title;
             panel.Visible = true;
+
+            CreateMainButton(panel);
+            CreateRollBackButton(panel);
+
+            application.Idling += Application_Idling;
+
+            return Result.Succeeded;
+        }
+
+        public void CreateMainButton(RibbonPanel panel)
+        {
             var label = "START";
             var toolTip = "Once this baby reaches 88 m/h youre gonna see some serious shit";
 
@@ -61,9 +73,25 @@ namespace BadRevitPlugin
 
             panel.AddItem(pushButtonData);
 
-            application.Idling += Application_Idling;
+        }
 
-            return Result.Succeeded;
+        public void CreateRollBackButton(RibbonPanel panel)
+        {
+            var label = "Undo";
+            var toolTip = "Undo prev frame";
+
+
+            Type commandType = typeof(UndoPrevFrameCommand);
+            Assembly assembly = commandType.Assembly;
+
+            var name = commandType.FullName;
+
+            var pushButtonData = new PushButtonData(label, label, assembly.Location, name)
+            {
+                ToolTip = toolTip,
+            };
+
+            panel.AddItem(pushButtonData);
         }
 
         private ImageSource GetImageSource(Icon resource)

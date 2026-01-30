@@ -26,6 +26,7 @@ namespace BadRevitPlugin
         public bool isInit = false;
 
 
+        // Pre-init vars
         Document doc;
         double wallHeight;
         WallType wallType;
@@ -33,6 +34,13 @@ namespace BadRevitPlugin
 
         double ceilingHeight;
         CeilingType ceilingType;
+
+
+        // Mid run state
+        List<ElementId> roomIds = new();
+        List<ElementId> wallIds = new();
+        List<ElementId> ceilingIds = new();
+
 
         public Result InitResources(Document doc)
         {
@@ -91,6 +99,8 @@ namespace BadRevitPlugin
 
                 Wall wall = Wall.Create(doc, wallLine, wallType.Id, level.Id, wallHeight, 0, false, false);
 
+                wallIds.Add(wall.Id);
+
                 outerLoop.Add(wallLine);
             }
 
@@ -109,6 +119,8 @@ namespace BadRevitPlugin
 
                     Wall wall = Wall.Create(doc, wallLine, wallType.Id, level.Id, wallHeight, 0, false, false);
 
+                    wallIds.Add(wall.Id);
+
                     innerLoop.Add(wallLine);
                 }
                 ceilingCurveLoops.Add(CurveLoop.Create(innerLoop));
@@ -125,17 +137,103 @@ namespace BadRevitPlugin
             }
 
 
-            doc.Create.NewRoom(level, uvPoint);
+            var createdRoom = doc.Create.NewRoom(level, uvPoint);
+            roomIds.Add(createdRoom.Id);
 
             var newCeiling = Ceiling.Create(doc, ceilingCurveLoops, ceilingType.Id, level.Id);
             Parameter newCeilingParam = newCeiling.get_Parameter(BuiltInParameter.CEILING_HEIGHTABOVELEVEL_PARAM);
             newCeilingParam.Set(ceilingHeight);
+            ceilingIds.Add(newCeiling.Id);
+
+            return Result.Succeeded;
+        }
+
+        public void UndoLastFrame()
+        {
+            //This doesnt work because the transaction managed object doesnt exist by a different command invocation
+            //prevTransaction.RollBack();
+
+            // Have to include this dll lib to get this to work
+            ////UIFrameworkServices.QuickAccessToolBarService.performMultipleUndoRedoOperations(true, 1)
+
+            var toDelete = roomIds.Concat(wallIds).Concat(ceilingIds);
+
+            Transaction transaction = new Transaction(doc);
+            transaction.Start("Removing prev frame items");
+            doc.Delete(toDelete.ToList());
+            transaction.Commit();
+
+            roomIds.Clear();
+            wallIds.Clear();
+            ceilingIds.Clear();
+        }
+
+
+        public Result DrawFirstFrame()
+        {
+            using (Transaction transaction = new Transaction(doc))
+            {
+
+                FailureHandlingOptions failureOptions = transaction.GetFailureHandlingOptions();
+                failureOptions.SetFailuresPreprocessor(new WarningSwallower());
+                transaction.SetFailureHandlingOptions(failureOptions);
+
+                //// Configure transaction to suppress failure messages
+                transaction.Start("Bad apple revit frame 1");
+
+                var frame = loader.context.frames[0];
+                var numBoundaries = frame.Rooms.Count;
+
+                for (int i = 0; i < numBoundaries; i++)
+                {
+                    var room = frame.Rooms[i];
+
+                    SubTransaction subTransaction = new SubTransaction(doc);
+                    subTransaction.Start();
+
+                    var startTime = DateTime.Now;
+                    DrawSingleBoundary(room, doc);
+                    var timeTaken = DateTime.Now - startTime;
+                    lastTimeRun = DateTime.Now;
+
+                    subTransaction.Commit();
+                }
+
+                transaction.Commit();
+
+                //TaskDialog.Show(
+                //    "Performance",
+                //    $"Operation completed in:\n{timeTaken.TotalMilliseconds:F0} ms\n" +
+                //    $"({timeTaken.TotalSeconds:F2} seconds)"
+                //);
+            }
+
+
+            //transaction.Commit();
 
 
             return Result.Succeeded;
-
         }
 
+
+        /// <summary>
+        /// This gets the walltype when there are no instances
+        /// </summary>
+        /// <returns></returns>
+        Wall GetWall()
+        {
+            var doc = BadApple.Application.ActiveUIDocument.Document;
+            // Get a basic wall type
+            return new FilteredElementCollector(doc)
+                .OfClass(typeof(Wall))
+                .FirstOrDefault(w => w.Name.Contains("Wall-Int")) as Wall;
+        }
+
+
+        public void Tick()
+        {
+
+        }
         void TestCeiling()
         {
             // Your outer polygon points
@@ -184,71 +282,6 @@ namespace BadRevitPlugin
 
         }
 
-        public Result DrawFirstFrame()
-        {
-            using (Transaction transaction = new Transaction(doc))
-            {
-
-                FailureHandlingOptions failureOptions = transaction.GetFailureHandlingOptions();
-                failureOptions.SetFailuresPreprocessor(new WarningSwallower());
-                transaction.SetFailureHandlingOptions(failureOptions);
-
-                //// Configure transaction to suppress failure messages
-                transaction.Start("Bad apple revit frame 1");
-
-                var frame = loader.context.frames[0];
-                var numBoundaries = frame.Rooms.Count;
-
-                for (int i = 0; i < numBoundaries; i++)
-                {
-                    var room = frame.Rooms[i];
-
-                    SubTransaction subTransaction = new SubTransaction(doc);
-                    subTransaction.Start();
-
-                    var startTime = DateTime.Now;
-                    DrawSingleBoundary(room, doc);
-                    var timeTaken = DateTime.Now - startTime;
-                    lastTimeRun = DateTime.Now;
-
-                    subTransaction.Commit();
-                }
-
-                transaction.Commit();
-                //TaskDialog.Show(
-                //    "Performance",
-                //    $"Operation completed in:\n{timeTaken.TotalMilliseconds:F0} ms\n" +
-                //    $"({timeTaken.TotalSeconds:F2} seconds)"
-                //);
-            }
-
-
-            //transaction.Commit();
-
-
-            return Result.Succeeded;
-        }
-
-
-        /// <summary>
-        /// This gets the walltype when there are no instances
-        /// </summary>
-        /// <returns></returns>
-        Wall GetWall()
-        {
-            var doc = BadApple.Application.ActiveUIDocument.Document;
-            // Get a basic wall type
-            return new FilteredElementCollector(doc)
-                .OfClass(typeof(Wall))
-                .FirstOrDefault(w => w.Name.Contains("Wall-Int")) as Wall;
-        }
-
-
-        public void Tick()
-        {
-
-        }
-
     }
 
     // Failure preprocessor to suppress warnings
@@ -265,7 +298,7 @@ namespace BadRevitPlugin
                 if (severity == FailureSeverity.Warning)
                 {
                     // Delete warnings
-                    //failuresAccessor.DeleteWarning(failure);
+                    failuresAccessor.DeleteWarning(failure);
                 }
                 else if (severity == FailureSeverity.Error)
                 {

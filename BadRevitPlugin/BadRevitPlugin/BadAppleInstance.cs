@@ -118,44 +118,102 @@ namespace BadRevitPlugin
 
         }
 
-        public Result DrawFirstFrame()
+        void TestCeiling()
         {
-
-            IArrayOf<double> firstFrameBoundarydoubles = loader.boundaries[0, 0] as IArrayOf<double>;
-            var numPoints = firstFrameBoundarydoubles.Dimensions[0];
-
-            List<XYZ> boundaryPoints = new();
-
-            for (int i = 0; i < numPoints; i++)
+            // Your outer polygon points
+            List<XYZ> outerPoints = new List<XYZ>
             {
-                boundaryPoints.Add(new XYZ(firstFrameBoundarydoubles[i, 0], firstFrameBoundarydoubles[i, 1], 0));
+                new XYZ(0, 0, 0),
+                new XYZ(20, 0, 0),
+                new XYZ(20, 20, 0),
+                new XYZ(0, 20, 0)
+            };
+
+            // Your inner polygon points (hole/void)
+            List<XYZ> innerPoints = new List<XYZ>
+            {
+                new XYZ(5, 5, 0),
+                new XYZ(10, 5, 0),
+                new XYZ(10, 10, 0),
+                new XYZ(5, 10, 0)
+            };
+
+            // Create outer boundary
+            List<Curve> outerCurves = new();
+            for (int i = 0; i < outerPoints.Count; i++)
+            {
+                XYZ start = outerPoints[i];
+                XYZ end = outerPoints[(i + 1) % outerPoints.Count];
+                outerCurves.Add(Line.CreateBound(start, end));
             }
 
+            // Create inner boundary (hole)
+            List<Curve> innerCurves = new();
+            for (int i = 0; i < innerPoints.Count; i++)
+            {
+                XYZ start = innerPoints[i];
+                XYZ end = innerPoints[(i + 1) % innerPoints.Count];
+                innerCurves.Add(Line.CreateBound(start, end));
+            }
 
+            // Create CurveArrArray with outer and inner loops
+            var outerLoop = CurveLoop.Create(outerCurves);
+            var innerLoop = CurveLoop.Create(innerCurves);
 
-            // Disable automatic regeneration
+            var newCeiling = Ceiling.Create(doc, new List<CurveLoop> { outerLoop, innerLoop }, ceilingType.Id, level.Id);
+            Parameter newCeilingParam = newCeiling.get_Parameter(BuiltInParameter.CEILING_HEIGHTABOVELEVEL_PARAM);
+            newCeilingParam.Set(ceilingHeight);
+
+        }
+
+        public Result DrawFirstFrame()
+        {
             using (Transaction transaction = new Transaction(doc))
             {
 
-                //// Configure transaction to suppress failure messages
                 FailureHandlingOptions failureOptions = transaction.GetFailureHandlingOptions();
                 failureOptions.SetFailuresPreprocessor(new WarningSwallower());
                 transaction.SetFailureHandlingOptions(failureOptions);
+
+                //// Configure transaction to suppress failure messages
                 transaction.Start("Bad apple revit frame 1");
 
+                var numBoundaries = loader.boundaries.Dimensions[1];
 
-                var startTime = DateTime.Now;
-                DrawSingleBoundary(boundaryPoints, doc);
-                var timeTaken = DateTime.Now - startTime;
-                lastTimeRun = DateTime.Now;
+                numBoundaries = 1;
+
+                for (int i = 0; i < numBoundaries; i++)
+                {
+
+                    IArrayOf<double> firstFrameBoundarydoubles = loader.boundaries[0, i] as IArrayOf<double>;
+                    var numPoints = firstFrameBoundarydoubles.Dimensions[0];
+
+                    List<XYZ> boundaryPoints = new();
+
+                    for (int j = 0; j < numPoints; j++)
+                    {
+                        boundaryPoints.Add(new XYZ(firstFrameBoundarydoubles[j, 0], firstFrameBoundarydoubles[j, 1], 0));
+                    }
+
+                    SubTransaction subTransaction = new SubTransaction(doc);
+                    //string transactionName = $"Boundary {i} setup"; // Not needed
+                    subTransaction.Start();
+
+                    var startTime = DateTime.Now;
+                    //DrawSingleBoundary(boundaryPoints, doc);
+                    TestCeiling();
+                    var timeTaken = DateTime.Now - startTime;
+                    lastTimeRun = DateTime.Now;
+
+                    subTransaction.Commit();
+                }
 
                 transaction.Commit();
-
-                TaskDialog.Show(
-                    "Performance",
-                    $"Operation completed in:\n{timeTaken.TotalMilliseconds:F0} ms\n" +
-                    $"({timeTaken.TotalSeconds:F2} seconds)"
-                );
+                //TaskDialog.Show(
+                //    "Performance",
+                //    $"Operation completed in:\n{timeTaken.TotalMilliseconds:F0} ms\n" +
+                //    $"({timeTaken.TotalSeconds:F2} seconds)"
+                //);
             }
 
 
@@ -201,7 +259,7 @@ namespace BadRevitPlugin
                 if (severity == FailureSeverity.Warning)
                 {
                     // Delete warnings
-                    failuresAccessor.DeleteWarning(failure);
+                    //failuresAccessor.DeleteWarning(failure);
                 }
                 else if (severity == FailureSeverity.Error)
                 {
@@ -213,8 +271,9 @@ namespace BadRevitPlugin
                     //failuresAccessor.DeleteElements(failingElementIds.ToList());
 
 
-                    failure.SetCurrentResolutionType(FailureResolutionType.DeleteElements);
-                    failuresAccessor.ResolveFailure(failure);
+                    //failure.SetCurrentResolutionType(FailureResolutionType.DeleteElements);
+
+                    //failuresAccessor.ResolveFailure(failure);
                 }
             }
 

@@ -1,6 +1,8 @@
-﻿using Autodesk.Revit.UI;
+﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
 using MatFileHandler;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 
@@ -57,5 +59,33 @@ namespace BadRevitPlugin
 
             Console.WriteLine("Sup");
         }
+    }
+
+    public class RoomBoundary
+    {
+        public List<XYZ> MainOuterLoop = new();
+        public List<List<XYZ>> InnerLoops = new();
+
+        public static RoomBoundary Create(IArrayOf<double> points)
+        {
+            var room = new RoomBoundary();
+            return room;
+        }
+    }
+
+    public class BadAppleFrame
+    {
+        public List<RoomBoundary> Rooms = new();
+
+        public static BadAppleFrame Create(ICellArray cellArray)
+        {
+            var frame = new BadAppleFrame();
+            return frame;
+        }
+    }
+
+    public class BadAppleContext
+    {
+        public List<BadAppleFrame> frames = new();
     }
 }

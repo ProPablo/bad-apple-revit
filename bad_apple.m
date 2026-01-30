@@ -13,7 +13,7 @@ imshow(single_frame);
 %% bad apple single frame read
 %bad_img = imread('bad/0004.png');
 %bad_img = imread('bad/0025.png');
- bad_img = imread('bad/0058.png'); % Curve length is too small for Revit's tolerance (as identified by Application.ShortCurveTolerance).
+bad_img = imread('bad/0058.png'); % Curve length is too small for Revit's tolerance (as identified by Application.ShortCurveTolerance).
 % start and end points are the same here
 
 
@@ -24,7 +24,7 @@ BW2 = imcomplement(BW); % invert selection
 figure;
 montage({bad_img,BW,BW2});
 
-[B,L, n] = bwboundaries(BW2);
+[B,L, n, A] = bwboundaries(BW2);
 
 
 %% simplified with polyshape only output 
@@ -44,48 +44,77 @@ boundary_nums = zeros(1, num_frames);
 boundary_num = 1;
 
 for k = 1:length(B)
+   
    boundary = B{k};
    plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
-
-   boundary = downsample(boundary, 2);
-   % By default bwboundaries provides coords in y, x
-   ps = polyshape(boundary(:,2), boundary(:,1))
-   %Sometimes you get sub regions TODO determine if we need to use because
-   %ps by default splits verteces by NaNs
-   ps = sortregions(ps,'perimeter','descend');
+   if (sum(A(k, :)) == 0) %isparent
+       boundary = downsample(boundary, 2);
+       % By default bwboundaries provides coords in y, x
+       ps = polyshape(boundary(:,2), boundary(:,1))
+       %Sometimes you get sub regions TODO determine if we need to use because
+       %ps by default splits verteces by NaNs
+       ps = sortregions(ps,'perimeter','descend');
+       
+       if (ps.NumRegions == 0)
+           continue
+       end
     
-   if (ps.NumRegions == 0)
-       continue
-   end
+       ps = polybuffer(ps, 0.5, "JointType","square");
+       ps = simplify(ps, "KeepCollinearPoints",false); % pre sure this is doing nothing but just in case
+    
+       regs = regions(ps);
+       ps = regs(1);
+       
+       [x,y] = centroid(ps);
+       
 
-   % Solves the colinnear vertex problem for this frame
-   % if (k ==1)
-   %    ps.Vertices(663,:) = [];
-   % end
 
-    ps = polybuffer(ps, 0.5, "JointType","square");
-    ps = simplify(ps, "KeepCollinearPoints",false); % pre sure this is doing nothing but just in case
+       %Insert children as holes
+       % Find all children of this parent
+        children_idx = find(A(:, k) == 1);
+        
+         % Add children (holes)
+        for j = 1:length(children_idx)
+            child_idx = children_idx(j);
+            % child preprocessing
+            child_boundary = B{child_idx};
+            child_boundary = downsample(child_boundary, 2);
 
-   regs = regions(ps);
-   main_poly = regs(1);
-   %This xy is correct
-   [x,y] = centroid(main_poly);
+
+            child_ps = polyshape(child_boundary(:,2), child_boundary(:,1));
+            
+              child_ps = polybuffer(child_ps, 0.5, "JointType","square");
+       child_ps = simplify(child_ps, "KeepCollinearPoints",false);
+            
+            child_ps_size = size(child_ps.Vertices);
+
+            if (child_ps.NumRegions == 0 | child_ps_size < MIN_SIMPLIFIED_POINTS)
+                continue
+            end
+            
+            ps = xor(ps, child_ps);
+            
+        end
+
+       simplified = ps.Vertices .* [1, -1];
+ 
+       
+       if (simplified_size(1) <= MIN_SIMPLIFIED_POINTS) 
+          continue
+       end
+      
+       plot(x,y,'r*')
+       plot(ps)
+
+       simple_bounds{1, boundary_num} = simplified; 
+       centroids{1, boundary_num} = [x,-y];
+       boundary_num = boundary_num + 1;
    
-   plot(x,y,'r*')
-   plot(ps)
-
-   simplified = main_poly.Vertices .* [1, -1];
-   simplified_size = size(simplified);
-   
-   if (simplified_size(1) <= MIN_SIMPLIFIED_POINTS) 
-      continue
    end
-  
-   simple_bounds{1, boundary_num} = simplified; 
-   centroids{1, boundary_num} = [x,-y];
-   boundary_num = boundary_num + 1;
    
 end
+
+%TODO ensure all boundaires do not have elements that overlap
 
 save('bad_apple.mat', 'simple_bounds', "num_frames", "centroids", "boundary_nums");
 
@@ -143,7 +172,7 @@ plot(boundary(:,2), boundary(:,1), 'g', 'LineWidth', 2)
 % find(ps.Vertices(:,1) == 243 & ps.Vertices(:,2) == 6 )
 
 
-
+ 
 % By default polyshape simplifies
 %ps = polyshape(boundary(:,2), boundary(:,1), "Simplify", false)
 ps = polyshape(boundary(:,2), boundary(:,1))
@@ -179,6 +208,78 @@ end
 
 axis equal
 hold off
+
+
+%% Parent child resolving
+figure
+hold on
+
+for k = 1:length(B)
+   boundary = B{k};
+   %This is parent OR child-less (Basically its not a child to anything)
+   if (sum(A(k, :)) == 0) % Can also be predicated with (nnz(A(:,k)) > 0) for exclusively parents
+       % Prepare vertices: parent followed by NaN-separated children
+        all_vertices_x = boundary(:, 2); % x coords
+        all_vertices_y = boundary(:, 1); % y coords
+        % Create polyshape with holes
+        ps = polyshape(all_vertices_x, all_vertices_y);
+        plot(ps)
+   end
+end
+
+%% All Children
+figure
+hold on
+for k = 1:length(B)
+   boundary = B{k};
+   %This is parent OR child-less (Basically its not a child to anything)
+   if (sum(A(k, :)) ~= 0) % Can also be predicated with (nnz(A(:,k)) > 0) for exclusively parents
+       % Prepare vertices: parent followed by NaN-separated children
+        all_vertices_x = boundary(:, 2); % x coords
+        all_vertices_y = boundary(:, 1); % y coords
+        % Create polyshape with holes
+        ps = polyshape(all_vertices_x, all_vertices_y);
+        plot(ps)
+   end
+end
+
+%% Making holes from children
+figure 
+hold on
+
+for k = 1:length(B)
+   boundary = B{k};
+   %This is parent OR child-less (Basically its not a child to anything)
+   if (sum(A(k, :)) == 0) % Can also be predicated with (nnz(A(:,k)) > 0) for exclusively parents
+       
+       % Prepare vertices: parent followed by NaN-separated children
+        all_vertices_x = boundary(:, 2); % x coords
+        all_vertices_y = boundary(:, 1); % y coords
+       ps = polyshape(all_vertices_x, all_vertices_y);
+
+
+        % Find all children of this parent
+        children_idx = find(A(:, 1) == 1);
+        
+         % Add children (holes)
+        for j = 1:length(children_idx)
+            child_idx = children_idx(j);
+            child_boundary = B{child_idx};
+            child_ps = polyshape(child_boundary(:,2), child_boundary(:,1));
+            ps = xor(ps, child_ps);
+            
+        end
+
+        % Create polyshape with holes
+        
+        plot(ps)
+   else
+       % We are children
+       continue
+   end
+
+end
+
 
 
 %% Edge detection

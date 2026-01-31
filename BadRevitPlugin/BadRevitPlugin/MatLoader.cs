@@ -4,46 +4,19 @@ using MatFileHandler;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 
 namespace BadRevitPlugin
 {
     public class MatLoader
     {
-        public MatLoader()
-        {
-
-        }
-
         public BadAppleContext context;
 
         public void Load()
         {
-            string cwd = System.IO.Directory.GetCurrentDirectory();
-            Console.WriteLine($"Current Working Directory: {cwd}");
-
-            // Might have to use this since mat will be located relative to this
-            string assemblyWorkingDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            Console.WriteLine($"Current Working Directory: {assemblyWorkingDir}");
-
-            //TaskDialog.Show("Current Working Dir", cwd);
-            //TaskDialog.Show("Assembly Working Dir", otherworkingDir);
-
-            var matRelativeLoc = "../../../../../bad_apple.mat";
-
-            var matFileLoc = Path.Combine(assemblyWorkingDir, matRelativeLoc);
-            matFileLoc = Path.GetFullPath(matFileLoc);
-
-            TaskDialog td = new TaskDialog("Mat File Location");
-            td.MainInstruction = "Material file path:";
-            td.MainContent = "Click 'Show Details' to view full path.";
-            td.ExpandedContent = matFileLoc;
-
-            //td.Show();
-
-
             IMatFile matFile;
-            using (var fileStream = new System.IO.FileStream(matFileLoc, System.IO.FileMode.Open))
+            using (var fileStream = new System.IO.FileStream(BadApple.MatPath, System.IO.FileMode.Open))
             {
                 var reader = new MatFileReader(fileStream);
                 matFile = reader.Read();
@@ -52,6 +25,10 @@ namespace BadRevitPlugin
             var frameCount = (int)matFile["num_frames"].Value.ConvertToDoubleArray()[0];
             var boundaries = matFile["simple_bounds"].Value as ICellArray;
             var centroids = matFile["centroids"].Value as ICellArray;
+            var boundaryCounts = matFile["boundary_nums"].Value
+                .ConvertToDoubleArray()
+                .Select(cum => (int)cum)
+                .ToList();
 
             context = new BadAppleContext();
 
@@ -60,7 +37,7 @@ namespace BadRevitPlugin
                 var frame = new BadAppleFrame();
                 context.frames.Add(frame);
 
-                var numBoundaries = boundaries.Dimensions[1];
+                var numBoundaries = boundaryCounts[f];
 
                 for (int b = 0; b < numBoundaries; b++)
                 {

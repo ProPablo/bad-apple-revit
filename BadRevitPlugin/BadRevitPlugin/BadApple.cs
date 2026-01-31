@@ -3,6 +3,7 @@ using Autodesk.Revit.UI;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -18,6 +19,28 @@ namespace BadRevitPlugin
     {
         public static BadAppleInstance Instance = null;
         public static UIApplication Application = null;
+
+        public static string BadAppleRoot;
+        public static string ImgSaveDir;
+        public static string MatPath;
+
+        public BadApple()
+        {
+
+            string assemblyWorkingDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            Console.WriteLine($"Current Working Directory: {assemblyWorkingDir}");
+
+            var matRelativePath = "../../../../../";
+            var matName = "bad_apple.mat";
+
+            BadAppleRoot = Path.Combine( assemblyWorkingDir, matRelativePath );
+            BadAppleRoot = Path.GetFullPath( BadAppleRoot );
+
+            MatPath = Path.Combine( BadAppleRoot, matName );
+            ImgSaveDir = Path.Combine( BadAppleRoot, "imgs" );
+            
+        }
+
         public void Dispose()
         {
             throw new NotImplementedException();
@@ -41,6 +64,8 @@ namespace BadRevitPlugin
             panel.Visible = true;
 
             CreateMainButton(panel);
+            CreateStopButton(panel);
+            CreateScreenshotButton(panel);
             CreateRollBackButton(panel);
 
             application.Idling += Application_Idling;
@@ -94,6 +119,40 @@ namespace BadRevitPlugin
             panel.AddItem(pushButtonData);
         }
 
+        public void CreateStopButton(RibbonPanel panel)
+        {
+            var label = "Stop";
+            var toolTip = "Stop frame processing";
+
+            var commandType = typeof(StopCommand);
+            var assembly = commandType.Assembly;
+            var name = commandType.FullName;
+
+            var pushButtonData = new PushButtonData(label, label, assembly.Location, name)
+            {
+                ToolTip = toolTip,
+            };
+
+            panel.AddItem(pushButtonData);
+        }
+
+        public void CreateScreenshotButton(RibbonPanel panel)
+        {
+            var label = "Screenshot";
+            var toolTip = "Capture a screenshot of the current screen";
+
+            var commandType = typeof(ScreenshotCommand);
+            var assembly = commandType.Assembly;
+            var name = commandType.FullName;
+
+            var pushButtonData = new PushButtonData(label, label, assembly.Location, name)
+            {
+                ToolTip = toolTip,
+            };
+
+            panel.AddItem(pushButtonData);
+        }
+
         private ImageSource GetImageSource(Icon resource)
         {
             ImageSource imageSource = Imaging.CreateBitmapSourceFromHIcon(resource.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
@@ -114,10 +173,14 @@ namespace BadRevitPlugin
             return resizedImage;
         }
 
-
         private void Application_Idling(object sender, Autodesk.Revit.UI.Events.IdlingEventArgs e)
         {
-            //throw new NotImplementedException();
+            if (Instance == null)
+            {
+                return;
+            }
+
+            Instance.Tick();
         }
     }
 }

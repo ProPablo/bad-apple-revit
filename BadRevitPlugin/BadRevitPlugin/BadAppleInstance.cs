@@ -208,10 +208,6 @@ namespace BadRevitPlugin
                 //);
             }
 
-
-            //transaction.Commit();
-
-
             return Result.Succeeded;
         }
 
@@ -297,8 +293,12 @@ namespace BadRevitPlugin
 
                 if (severity == FailureSeverity.Warning)
                 {
-                    // Delete warnings
-                    failuresAccessor.DeleteWarning(failure);
+                    // Delete unwanted warnings
+                    //https://www.revitapidocs.com/2016/c0b6a1e7-ac2c-daaf-031b-b7b1fa946d32.htm
+                    if (failure.GetFailureDefinitionId() == BuiltInFailures.InaccurateFailures.InaccurateSketchLine)
+                    {
+                        failuresAccessor.DeleteWarning(failure);
+                    }
                 }
                 else if (severity == FailureSeverity.Error)
                 {

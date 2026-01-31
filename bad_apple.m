@@ -1,14 +1,49 @@
 %% bad apple
-
 % shoutout to mxb161 for dis
-bad_vid = VideoReader('bad-apple.mp4') 
+bad_vid = VideoReader('bad-apple.mp4')
+
+APPROX_BOUNDARY_AMOUNT = 5;
+MIN_SIMPLIFIED_POINTS = 4;
+
+simple_bounds = cell(num_frames, length(B));
+centroids = cell(num_frames, length(B));
+boundary_nums = zeros(1, num_frames);
+
+for i=1:bad_vid.NumFrames
+   frame = read(bad_vid, i);
+   gray_img = rgb2gray(frame);
+   BW = imbinarize(gray_img, 'global'); % we dont need adaptive here, adaptive is good for eg a half lit page
+   BW2 = imcomplement(BW); % invert selection
+   [B,L, n, A] = bwboundaries(BW2);
+
+end
+
+
+
+%% bad apple video lower framerate
+bad_vid = VideoReader('bad-apple.mp4')
 
 desired_framerate = 10;
+record_per_frame = floor(bad_vid.FrameRate/ desired_framerate);
 
 single_frame = read(bad_vid, 100);
 f = figure('visible', true);
 
-imshow(single_frame);
+lower_fps_vid = VideoWriter('low_fps_bad_apple')
+lower_fps_vid.FrameRate = 10;
+open(lower_fps_vid)
+
+for i=1:record_per_frame:bad_vid.NumFrames
+   % Read the next frame
+   frame = read(bad_vid, i);
+   % Show the mask
+
+   writeVideo(lower_fps_vid, frame)
+   imshow(frame)
+end
+
+close(lower_fps_vid);
+%imshow(single_frame);
 
 %% bad apple single frame read
 %bad_img = imread('bad/0004.png');
@@ -27,7 +62,7 @@ montage({bad_img,BW,BW2});
 [B,L, n, A] = bwboundaries(BW2);
 
 
-%% simplified with polyshape only output 
+%% simplified with polyshape only output
 
 figure
 hold on
@@ -36,83 +71,82 @@ num_frames = 2;
 
 MIN_SIMPLIFIED_POINTS = 4;
 
-simple_bounds = cell(length(B), num_frames);
-centroids = cell(length(B), num_frames);
+simple_bounds = cell(num_frames, length(B));
+centroids = cell(num_frames, length(B));
 boundary_nums = zeros(1, num_frames);
 
 
-boundary_num = 1;
+boundary_num = 0;
 
 for k = 1:length(B)
-   
+
    boundary = B{k};
    plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
    if (sum(A(k, :)) == 0) %isparent
-       boundary = downsample(boundary, 2);
-       % By default bwboundaries provides coords in y, x
-       ps = polyshape(boundary(:,2), boundary(:,1))
-       %Sometimes you get sub regions TODO determine if we need to use because
-       %ps by default splits verteces by NaNs
-       ps = sortregions(ps,'perimeter','descend');
-       
-       if (ps.NumRegions == 0)
-           continue
-       end
-    
-       ps = polybuffer(ps, 0.5, "JointType","square");
-       ps = simplify(ps, "KeepCollinearPoints",false); % pre sure this is doing nothing but just in case
-    
-       regs = regions(ps);
-       ps = regs(1);
-       
-       [x,y] = centroid(ps);
-       
+      boundary = downsample(boundary, 2);
+      % By default bwboundaries provides coords in y, x
+      ps = polyshape(boundary(:,2), boundary(:,1))
+      %Sometimes you get sub regions TODO determine if we need to use because
+      %ps by default splits verteces by NaNs
+      ps = sortregions(ps,'perimeter','descend');
+
+      if (ps.NumRegions == 0)
+         continue
+      end
+
+      ps = polybuffer(ps, 0.5, "JointType","square");
+      ps = simplify(ps, "KeepCollinearPoints",false); % pre sure this is doing nothing but just in case
+
+      regs = regions(ps);
+      ps = regs(1);
+
+      [x,y] = centroid(ps);
+
+      %Insert children as holes
+      % Find all children of this parent
+      children_idx = find(A(:, k) == 1);
+
+      % Add children (holes)
+      for j = 1:length(children_idx)
+         child_idx = children_idx(j);
+         % child preprocessing
+         child_boundary = B{child_idx};
+         child_boundary = downsample(child_boundary, 2);
 
 
-       %Insert children as holes
-       % Find all children of this parent
-        children_idx = find(A(:, k) == 1);
-        
-         % Add children (holes)
-        for j = 1:length(children_idx)
-            child_idx = children_idx(j);
-            % child preprocessing
-            child_boundary = B{child_idx};
-            child_boundary = downsample(child_boundary, 2);
+         child_ps = polyshape(child_boundary(:,2), child_boundary(:,1));
+
+         child_ps = polybuffer(child_ps, 0.5, "JointType","square");
+         child_ps = simplify(child_ps, "KeepCollinearPoints",false);
+
+         child_ps_size = size(child_ps.Vertices);
+
+         if (child_ps.NumRegions == 0 | child_ps_size < MIN_SIMPLIFIED_POINTS)
+            continue
+         end
+
+         ps = xor(ps, child_ps);
+
+      end
+
+      simplified = ps.Vertices .* [1, -1];
 
 
-            child_ps = polyshape(child_boundary(:,2), child_boundary(:,1));
-            
-              child_ps = polybuffer(child_ps, 0.5, "JointType","square");
-       child_ps = simplify(child_ps, "KeepCollinearPoints",false);
-            
-            child_ps_size = size(child_ps.Vertices);
+      if (simplified_size(1) <= MIN_SIMPLIFIED_POINTS)
+         continue
+      end
 
-            if (child_ps.NumRegions == 0 | child_ps_size < MIN_SIMPLIFIED_POINTS)
-                continue
-            end
-            
-            ps = xor(ps, child_ps);
-            
-        end
-
-       simplified = ps.Vertices .* [1, -1];
- 
-       
-       if (simplified_size(1) <= MIN_SIMPLIFIED_POINTS) 
-          continue
-       end
+      plot(x,y,'r*')
+      plot(ps)
+      boundary_num = boundary_num + 1;
+      simple_bounds{1, boundary_num} = simplified;
+      centroids{1, boundary_num} = [x,-y];
       
-       plot(x,y,'r*')
-       plot(ps)
 
-       simple_bounds{1, boundary_num} = simplified; 
-       centroids{1, boundary_num} = [x,-y];
-       boundary_num = boundary_num + 1;
-   
    end
-   
+
 end
+boundary_nums(1) = boundary_num;
 
 %TODO ensure all boundaires do not have elements that overlap
 
@@ -139,20 +173,20 @@ boundary_num = 1;
 for k = 1:length(B)
    boundary = B{k};
    plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
-   
+
    % By default bwboundaries provides coords in y, x
    ps = polyshape(boundary(:,2), boundary(:,1));
    %This xy is correct
    [x,y] = centroid(ps);
-   
+
    plot(x,y,'r*')
    %Simplify boundary
    simplified = downsample(boundary, 1);
    simplified = simplified(:, [2, 1]) .* [1, -1]; % Convert to (x, y) and flip y (TODO this does flip but makes y negative)
    simplified_size = size(simplified);
-   
+
    if (simplified_size(1) >= MIN_SIMPLIFIED_POINTS)
-      simple_bounds{1, boundary_num} = simplified; 
+      simple_bounds{1, boundary_num} = simplified;
       centroids{1, boundary_num} = [x,-y];
       boundary_num = boundary_num + 1;
    end
@@ -172,7 +206,7 @@ plot(boundary(:,2), boundary(:,1), 'g', 'LineWidth', 2)
 % find(ps.Vertices(:,1) == 243 & ps.Vertices(:,2) == 6 )
 
 
- 
+
 % By default polyshape simplifies
 %ps = polyshape(boundary(:,2), boundary(:,1), "Simplify", false)
 ps = polyshape(boundary(:,2), boundary(:,1))
@@ -196,14 +230,14 @@ figure; hold on
 cmap = lines(numel(regs));
 
 for k = 1:numel(regs)
-    plot(regs(k), ...
-        'FaceColor', cmap(k,:), ...
-        'EdgeColor', 'k', ...
-        'FaceAlpha', 0.7);
-     [cx, cy] = centroid(regs(k));
-    text(cx, cy, num2str(k), ...
-        'HorizontalAlignment','center', ...
-        'FontSize',12, 'FontWeight','bold');
+   plot(regs(k), ...
+      'FaceColor', cmap(k,:), ...
+      'EdgeColor', 'k', ...
+      'FaceAlpha', 0.7);
+   [cx, cy] = centroid(regs(k));
+   text(cx, cy, num2str(k), ...
+      'HorizontalAlignment','center', ...
+      'FontSize',12, 'FontWeight','bold');
 end
 
 axis equal
@@ -218,12 +252,12 @@ for k = 1:length(B)
    boundary = B{k};
    %This is parent OR child-less (Basically its not a child to anything)
    if (sum(A(k, :)) == 0) % Can also be predicated with (nnz(A(:,k)) > 0) for exclusively parents
-       % Prepare vertices: parent followed by NaN-separated children
-        all_vertices_x = boundary(:, 2); % x coords
-        all_vertices_y = boundary(:, 1); % y coords
-        % Create polyshape with holes
-        ps = polyshape(all_vertices_x, all_vertices_y);
-        plot(ps)
+      % Prepare vertices: parent followed by NaN-separated children
+      all_vertices_x = boundary(:, 2); % x coords
+      all_vertices_y = boundary(:, 1); % y coords
+      % Create polyshape with holes
+      ps = polyshape(all_vertices_x, all_vertices_y);
+      plot(ps)
    end
 end
 
@@ -234,48 +268,48 @@ for k = 1:length(B)
    boundary = B{k};
    %This is parent OR child-less (Basically its not a child to anything)
    if (sum(A(k, :)) ~= 0) % Can also be predicated with (nnz(A(:,k)) > 0) for exclusively parents
-       % Prepare vertices: parent followed by NaN-separated children
-        all_vertices_x = boundary(:, 2); % x coords
-        all_vertices_y = boundary(:, 1); % y coords
-        % Create polyshape with holes
-        ps = polyshape(all_vertices_x, all_vertices_y);
-        plot(ps)
+      % Prepare vertices: parent followed by NaN-separated children
+      all_vertices_x = boundary(:, 2); % x coords
+      all_vertices_y = boundary(:, 1); % y coords
+      % Create polyshape with holes
+      ps = polyshape(all_vertices_x, all_vertices_y);
+      plot(ps)
    end
 end
 
 %% Making holes from children
-figure 
+figure
 hold on
 
 for k = 1:length(B)
    boundary = B{k};
    %This is parent OR child-less (Basically its not a child to anything)
    if (sum(A(k, :)) == 0) % Can also be predicated with (nnz(A(:,k)) > 0) for exclusively parents
-       
-       % Prepare vertices: parent followed by NaN-separated children
-        all_vertices_x = boundary(:, 2); % x coords
-        all_vertices_y = boundary(:, 1); % y coords
-       ps = polyshape(all_vertices_x, all_vertices_y);
+
+      % Prepare vertices: parent followed by NaN-separated children
+      all_vertices_x = boundary(:, 2); % x coords
+      all_vertices_y = boundary(:, 1); % y coords
+      ps = polyshape(all_vertices_x, all_vertices_y);
 
 
-        % Find all children of this parent
-        children_idx = find(A(:, 1) == 1);
-        
-         % Add children (holes)
-        for j = 1:length(children_idx)
-            child_idx = children_idx(j);
-            child_boundary = B{child_idx};
-            child_ps = polyshape(child_boundary(:,2), child_boundary(:,1));
-            ps = xor(ps, child_ps);
-            
-        end
+      % Find all children of this parent
+      children_idx = find(A(:, 1) == 1);
 
-        % Create polyshape with holes
-        
-        plot(ps)
+      % Add children (holes)
+      for j = 1:length(children_idx)
+         child_idx = children_idx(j);
+         child_boundary = B{child_idx};
+         child_ps = polyshape(child_boundary(:,2), child_boundary(:,1));
+         ps = xor(ps, child_ps);
+
+      end
+
+      % Create polyshape with holes
+
+      plot(ps)
    else
-       % We are children
-       continue
+      % We are children
+      continue
    end
 
 end

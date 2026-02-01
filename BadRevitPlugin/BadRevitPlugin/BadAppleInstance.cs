@@ -4,6 +4,7 @@ using Autodesk.Revit.UI;
 using MatFileHandler;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -17,14 +18,13 @@ namespace BadRevitPlugin
 
         public DateTime lastTimeRun;
         public static TimeSpan FRAME_TIME = TimeSpan.FromMilliseconds(20);
+        private Stopwatch frameTimer;
+        private const double FRAME_INTERVAL_SECONDS = 0.5;
         public BadAppleInstance()
         {
             loader = new MatLoader();
             loader.Load();
         }
-
-        public bool isInit = false;
-
 
         // Pre-init vars
         Document doc;
@@ -45,6 +45,8 @@ namespace BadRevitPlugin
         public Result InitResources(Document doc)
         {
             this.doc = doc;
+
+            frameTimer = Stopwatch.StartNew();
 
             //double wallHeight = 10.0; // 10 feet
             var instancedWall = GetWall();
@@ -160,7 +162,9 @@ namespace BadRevitPlugin
 
             Transaction transaction = new Transaction(doc);
             transaction.Start("Removing prev frame items");
+
             doc.Delete(toDelete.ToList());
+
             transaction.Commit();
 
             roomIds.Clear();
@@ -171,6 +175,12 @@ namespace BadRevitPlugin
 
         public Result DrawFirstFrame()
         {
+            return DrawFrame(0);
+        }
+
+
+        private Result DrawFrame(int frameIndex)
+        {
             using (Transaction transaction = new Transaction(doc))
             {
 
@@ -179,9 +189,9 @@ namespace BadRevitPlugin
                 transaction.SetFailureHandlingOptions(failureOptions);
 
                 //// Configure transaction to suppress failure messages
-                transaction.Start("Bad apple revit frame 1");
+                transaction.Start($"Bad apple revit frame {frameIndex + 1}");
 
-                var frame = loader.context.frames[0];
+                var frame = loader.context.frames[frameIndex];
                 var numBoundaries = frame.Rooms.Count;
 
                 for (int i = 0; i < numBoundaries; i++)
@@ -228,7 +238,35 @@ namespace BadRevitPlugin
 
         public void Tick()
         {
+            if (frameTimer == null)
+            {
+                return; // Not initialized yet
+            }
 
+            // Check if at least 0.5 seconds have passed since the last frame finished
+            if (frameTimer.Elapsed.TotalSeconds >= FRAME_INTERVAL_SECONDS)
+            {
+                // Undo the current frame before drawing the next one
+                // (DrawFirstFrame is called separately, so by the time Tick is called,
+                // we always have a frame to undo before drawing the next)
+
+                ScreenshotService.TakeCurrentFrameScreenshot();
+
+                UndoLastFrame();
+
+                if (frameNum + 1 >= loader.context.frames.Count)
+                {
+                    frameTimer.Stop();
+                    TaskDialog.Show("Finished all tframes!!!", "Done");
+                    BadApple.Instance = null;
+                    return;
+                }
+
+                frameNum++;
+                DrawFrame(frameNum);
+
+                frameTimer.Restart();
+            }
         }
         void TestCeiling()
         {
@@ -293,9 +331,17 @@ namespace BadRevitPlugin
 
                 if (severity == FailureSeverity.Warning)
                 {
+
+                    var failureId = failure.GetFailureDefinitionId();
                     // Delete unwanted warnings
                     //https://www.revitapidocs.com/2016/c0b6a1e7-ac2c-daaf-031b-b7b1fa946d32.htm
-                    if (failure.GetFailureDefinitionId() == BuiltInFailures.InaccurateFailures.InaccurateSketchLine)
+                    //These are not compile time constants so we cant use a switch statement on em
+
+                    if (failureId == BuiltInFailures.InaccurateFailures.InaccurateSketchLine)
+                    {
+                        failuresAccessor.DeleteWarning(failure);
+                    }
+                    if (failureId == BuiltInFailures.InaccurateFailures.InaccurateWall)
                     {
                         failuresAccessor.DeleteWarning(failure);
                     }

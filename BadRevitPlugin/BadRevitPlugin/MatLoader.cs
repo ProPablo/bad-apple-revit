@@ -32,7 +32,7 @@ namespace BadRevitPlugin
 
             context = new BadAppleContext();
 
-            for (int f = 0; f < 1; f++)
+            for (int f = 0; f < frameCount; f++)
             {
                 var frame = new BadAppleFrame();
                 context.frames.Add(frame);
@@ -49,6 +49,8 @@ namespace BadRevitPlugin
                     frame.Rooms.Add(room);
                 }
             }
+
+            Console.WriteLine($"Done processing file");
         }
     }
 

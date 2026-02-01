@@ -1,24 +1,94 @@
 %% bad apple
+clear; close all;
+
 % shoutout to mxb161 for dis
 bad_vid = VideoReader('bad-apple.mp4')
 
 APPROX_BOUNDARY_AMOUNT = 5;
 MIN_SIMPLIFIED_POINTS = 4;
 
-simple_bounds = cell(num_frames, length(B));
-centroids = cell(num_frames, length(B));
+%num_frames = bad_vid.NumFrames;
+%start_frame = 0;
+
+num_frames = 50;
+start_frame = 50;
+
+
+simple_bounds = cell(num_frames, APPROX_BOUNDARY_AMOUNT);
+centroids = cell(num_frames, APPROX_BOUNDARY_AMOUNT);
 boundary_nums = zeros(1, num_frames);
 
-for i=1:bad_vid.NumFrames
-   frame = read(bad_vid, i);
+figure
+
+
+for i=1:num_frames
+   frame = read(bad_vid, i + start_frame);
    gray_img = rgb2gray(frame);
    BW = imbinarize(gray_img, 'global'); % we dont need adaptive here, adaptive is good for eg a half lit page
    BW2 = imcomplement(BW); % invert selection
    [B,L, n, A] = bwboundaries(BW2);
+   boundary_num = 0;
+   
+   imshow(label2rgb(L, @jet, [.5 .5 .5]))
+   hold on
 
+   for k = 1:length(B)
+
+      boundary = B{k};
+      plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
+      if (sum(A(k, :)) == 0) %isparent
+         boundary = downsample(boundary, 2);
+         ps = polyshape(boundary(:,2), boundary(:,1));
+         ps = sortregions(ps,'perimeter','descend');
+         ps_size = size(ps.Vertices);
+         if (ps.NumRegions == 0)
+            continue
+         end
+         if (ps_size <= MIN_SIMPLIFIED_POINTS)
+            continue
+         end
+         ps = polybuffer(ps, 0.5, "JointType","square");
+         ps = simplify(ps, "KeepCollinearPoints",false); % pre sure this is doing nothing but just in case
+         regs = regions(ps);
+         ps = regs(1);
+         [x,y] = centroid(ps);
+
+         children_idx = find(A(:, k) == 1);
+         % Add children (holes)
+         for j = 1:length(children_idx)
+            child_idx = children_idx(j);
+            % child preprocessing
+            child_boundary = B{child_idx};
+            child_boundary = downsample(child_boundary, 2);
+            child_ps = polyshape(child_boundary(:,2), child_boundary(:,1));
+
+            child_ps = polybuffer(child_ps, 0.5, "JointType","square");
+            child_ps = simplify(child_ps, "KeepCollinearPoints",false);
+
+            child_ps_size = size(child_ps.Vertices);
+
+            if (child_ps.NumRegions == 0 | child_ps_size < MIN_SIMPLIFIED_POINTS)
+               continue
+            end
+            ps = xor(ps, child_ps);
+
+         end
+
+         simplified = ps.Vertices .* [1, -1];
+
+         boundary_num = boundary_num + 1;
+         simple_bounds{i, boundary_num} = simplified;
+         centroids{i, boundary_num} = [x,-y];
+
+      end
+
+   end
+   boundary_nums(i) = boundary_num;
+   drawnow;
+pause(0.1)
 end
 
-
+save('bad_apple.mat', 'simple_bounds', "num_frames", "centroids", "boundary_nums");
 
 %% bad apple video lower framerate
 bad_vid = VideoReader('bad-apple.mp4')
@@ -141,7 +211,6 @@ for k = 1:length(B)
       boundary_num = boundary_num + 1;
       simple_bounds{1, boundary_num} = simplified;
       centroids{1, boundary_num} = [x,-y];
-      
 
    end
 

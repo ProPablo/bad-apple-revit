@@ -33,7 +33,7 @@ namespace BadRevitPlugin
                 string filePath = Path.Combine(BadApple.ImgSaveDir, picName);
                 bitmap.Save(filePath, System.Drawing.Imaging.ImageFormat.Jpeg);
 
-                TaskDialog.Show("Screenshot", $"Screenshot saved to:\n{filePath}");
+                //TaskDialog.Show("Screenshot", $"Screenshot saved to:\n{filePath}");
             }
 
         }

@@ -24,6 +24,7 @@ namespace BadRevitPlugin
         public static string ImgSaveDir;
         public static string MatPath;
 
+
         public BadApple()
         {
 
@@ -67,6 +68,7 @@ namespace BadRevitPlugin
             CreateStopButton(panel);
             CreateScreenshotButton(panel);
             CreateRollBackButton(panel);
+            CreateDrawSingleFrameButton(panel);
 
             application.Idling += Application_Idling;
 
@@ -142,6 +144,23 @@ namespace BadRevitPlugin
             var toolTip = "Capture a screenshot of the current screen";
 
             var commandType = typeof(ScreenshotCommand);
+            var assembly = commandType.Assembly;
+            var name = commandType.FullName;
+
+            var pushButtonData = new PushButtonData(label, label, assembly.Location, name)
+            {
+                ToolTip = toolTip,
+            };
+
+            panel.AddItem(pushButtonData);
+        }
+
+        public void CreateDrawSingleFrameButton(RibbonPanel panel)
+        {
+            var label = "Draw Frame";
+            var toolTip = "Draw a single frame (frame index is hardcoded in DrawSingleFrameCommand)";
+
+            var commandType = typeof(DrawSingleFrameCommand);
             var assembly = commandType.Assembly;
             var name = commandType.FullName;
 

@@ -100,6 +100,9 @@ BW4 = imclose(BW3, SE_close);
 figure;
 montage({BW2, BW3, BW4}, "Size", [1 3], "BorderSize", 3, "BackgroundColor", "red");
 
+
+% ACTUAL blob detection that is done better than before because it is
+% affected by morphology (no text in boxes)
 CC = bwconncomp(BW4);
 stats = regionprops(CC, ["BoundingBox"] );
 roi = vertcat(stats(:).BoundingBox);
@@ -209,10 +212,13 @@ end
 % [~, idx] = max([stats.Area]);
 
 idx = find(correct_roi_idx);
+%idx = 5;
+
 boundary = stats(idx).ConvexHull;  % Nx2 matrix of boundary points 
 % (indexing a prop like this just gets the first one even though idx has 2 memebers)
 
-% Approximate polygon (Douglas-Peucker algorithm)
+% Approximate polygon (Douglas-Peucker algorithm) (Do this to reduce
+% verteces down to 4)
 perimeter = stats(idx).Perimeter;
 epsilon = 0.1;
 approx = reducepoly(boundary, epsilon);
@@ -275,11 +281,11 @@ score_roi = [warped_details_top_left + score_offset , score_box_size];
 score_roi  = expandRoi(score_roi);
 
 img_cropped = imcrop(warpedImg, score_roi);
-Icorrected = imtophat(img_cropped,strel("disk",15));
+Icorrected = imtophat(img_cropped,strel("disk",15)); % Really helps with eliminating similarity with background (check main resource)
 BW1 = imbinarize(Icorrected);
 
 figure 
-imshowpair(img_cropped,BW1,"montage")
+montage({img_cropped, Icorrected, BW1})
 
 % Perform morphological reconstruction and show binarized image.
 marker = imerode(Icorrected,strel("line",10,0));
@@ -288,7 +294,7 @@ Iclean = imreconstruct(marker,Icorrected);
 Ibinary = imbinarize(Iclean);
 
 figure
-montage({Iclean,Ibinary,marker})
+montage({marker, Iclean, Ibinary})
 
 BW2 = imcomplement(Ibinary);
 figure

@@ -17,7 +17,6 @@ namespace BadRevitPlugin
         public int frameNum = 0;
 
         public DateTime lastTimeRun;
-        public static TimeSpan FRAME_TIME = TimeSpan.FromMilliseconds(20);
         private Stopwatch frameTimer;
         private const double FRAME_INTERVAL_SECONDS = 0.5;
         public BadAppleInstance()
@@ -41,6 +40,10 @@ namespace BadRevitPlugin
         List<ElementId> wallIds = new();
         List<ElementId> ceilingIds = new();
 
+        public bool isRunning = false;
+
+        List<ElementId> existingElements;
+        
 
         public Result InitResources(Document doc)
         {
@@ -49,7 +52,12 @@ namespace BadRevitPlugin
             frameTimer = Stopwatch.StartNew();
 
             //double wallHeight = 10.0; // 10 feet
-            var instancedWall = GetWall();
+            var instancedWalls = GetWalls();
+
+            existingElements = instancedWalls.Select(w => w.Id).ToList();
+
+            var instancedWall = instancedWalls.FirstOrDefault();
+
             if (instancedWall == null)
             {
                 TaskDialog.Show("Error", "Wall not found");
@@ -73,6 +81,8 @@ namespace BadRevitPlugin
                 .Cast<Ceiling>()
                 .FirstOrDefault(c => c.Name.Contains("Epic ceiling"));
 
+            existingElements.Add(ceiling.Id);
+
             if (ceilingType == null || ceiling == null)
             {
                 TaskDialog.Show("Error", "Ceiling type or ceiling not found");
@@ -81,6 +91,8 @@ namespace BadRevitPlugin
 
             Parameter param = ceiling.get_Parameter(BuiltInParameter.CEILING_HEIGHTABOVELEVEL_PARAM);
             ceilingHeight = param.AsDouble();
+
+            isRunning = true;
 
             return Result.Succeeded;
         }
@@ -178,14 +190,13 @@ namespace BadRevitPlugin
             return DrawFrame(0);
         }
 
-
-        private Result DrawFrame(int frameIndex)
+        public Result DrawFrame(int frameIndex)
         {
             using (Transaction transaction = new Transaction(doc))
             {
 
                 FailureHandlingOptions failureOptions = transaction.GetFailureHandlingOptions();
-                failureOptions.SetFailuresPreprocessor(new WarningSwallower());
+                failureOptions.SetFailuresPreprocessor(new WarningSwallower(this));
                 transaction.SetFailureHandlingOptions(failureOptions);
 
                 //// Configure transaction to suppress failure messages
@@ -226,18 +237,22 @@ namespace BadRevitPlugin
         /// This gets the walltype when there are no instances
         /// </summary>
         /// <returns></returns>
-        Wall GetWall()
+        List<Wall> GetWalls()
         {
             var doc = BadApple.Application.ActiveUIDocument.Document;
             // Get a basic wall type
             return new FilteredElementCollector(doc)
                 .OfClass(typeof(Wall))
-                .FirstOrDefault(w => w.Name.Contains("Wall-Int")) as Wall;
+                .Cast<Wall>()
+                .ToList();
         }
 
 
         public void Tick()
         {
+            if (!isRunning)
+                return;
+
             if (frameTimer == null)
             {
                 return; // Not initialized yet
@@ -321,6 +336,13 @@ namespace BadRevitPlugin
     // Failure preprocessor to suppress warnings
     public class WarningSwallower : IFailuresPreprocessor
     {
+        private readonly BadAppleInstance _instance;
+
+        public WarningSwallower(BadAppleInstance instance)
+        {
+            _instance = instance;
+        }
+
         public FailureProcessingResult PreprocessFailures(FailuresAccessor failuresAccessor)
         {
             IList<FailureMessageAccessor> failures = failuresAccessor.GetFailureMessages();
@@ -340,11 +362,21 @@ namespace BadRevitPlugin
                     if (failureId == BuiltInFailures.InaccurateFailures.InaccurateSketchLine)
                     {
                         failuresAccessor.DeleteWarning(failure);
+                        continue;
+
                     }
                     if (failureId == BuiltInFailures.InaccurateFailures.InaccurateWall)
                     {
                         failuresAccessor.DeleteWarning(failure);
+                        continue;
                     }
+                    if (failureId == BuiltInFailures.OverlapFailures.WallsOverlap)
+                    {
+                        failuresAccessor.DeleteWarning(failure);
+                        continue;
+                    }
+                    var error = failure.GetDescriptionText();
+                    Console.WriteLine($"fucked up: {error}");
                 }
                 else if (severity == FailureSeverity.Error)
                 {
@@ -359,6 +391,8 @@ namespace BadRevitPlugin
                     //failure.SetCurrentResolutionType(FailureResolutionType.DeleteElements);
 
                     //failuresAccessor.ResolveFailure(failure);
+
+                    //If we get here, perhaps just undo and force the next run to rerun the current frame and try with a different wallthickness
                 }
             }
 

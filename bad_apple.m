@@ -115,6 +115,22 @@ end
 close(lower_fps_vid);
 %imshow(single_frame);
 
+%% Read imgs into a video
+imgFolder = 'imgs';
+
+files = dir(fullfile(imgFolder, '*.jpg'));
+
+v = VideoWriter('output.mp4', 'MPEG-4');
+v.FrameRate = 30;
+open(v);
+
+for i = 1:length(files)
+    img = imread(fullfile(imgFolder, files(i).name));
+    writeVideo(v, img);
+end
+
+close(v);
+
 %% bad apple single frame read
 %bad_img = imread('bad/0004.png');
 %bad_img = imread('bad/0025.png');

@@ -69,6 +69,7 @@ namespace BadRevitPlugin
             CreateScreenshotButton(panel);
             CreateRollBackButton(panel);
             CreateDrawSingleFrameButton(panel);
+            CreatePrintCameraPoseButton(panel);
 
             application.Idling += Application_Idling;
 
@@ -101,6 +102,24 @@ namespace BadRevitPlugin
             panel.AddItem(pushButtonData);
 
         }
+
+        public void CreatePrintCameraPoseButton(RibbonPanel panel)
+        {
+            var label = "Print Cam";
+            var toolTip = "Print current 3D camera position and rotation to console/dialog";
+
+            var commandType = typeof(PrintCameraPoseCommand);
+            var assembly = commandType.Assembly;
+            var name = commandType.FullName;
+
+            var pushButtonData = new PushButtonData(label, label, assembly.Location, name)
+            {
+                ToolTip = toolTip,
+            };
+
+            panel.AddItem(pushButtonData);
+        }
+
 
         public void CreateRollBackButton(RibbonPanel panel)
         {

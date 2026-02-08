@@ -10,8 +10,8 @@ MIN_SIMPLIFIED_POINTS = 4;
 %num_frames = bad_vid.NumFrames;
 %start_frame = 0;
 
-num_frames = 50;
-start_frame = 50;
+num_frames = 2000;
+start_frame = 0;
 
 
 simple_bounds = cell(num_frames, APPROX_BOUNDARY_AMOUNT);

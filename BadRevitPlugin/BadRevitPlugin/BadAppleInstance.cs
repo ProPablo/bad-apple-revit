@@ -14,7 +14,9 @@ namespace BadRevitPlugin
     public class BadAppleInstance
     {
         public MatLoader loader;
+        public CameraAnimator animator;
         public int frameNum = 0;
+
 
         public DateTime lastTimeRun;
         private Stopwatch frameTimer;
@@ -93,6 +95,8 @@ namespace BadRevitPlugin
             ceilingHeight = param.AsDouble();
 
             isRunning = true;
+
+            animator = new CameraAnimator(loader.context.frames.Count);
 
             return Result.Succeeded;
         }
@@ -279,6 +283,20 @@ namespace BadRevitPlugin
 
                 frameNum++;
                 DrawFrame(frameNum);
+
+                var activeView3D = doc.ActiveView as View3D;
+
+                // Animate camera
+                using (Transaction trans = new Transaction(doc, "Animate Camera"))
+                {
+                    trans.Start();
+                    ViewOrientation3D newOrientation = animator.GetCurrentOrientation();
+                    activeView3D.SetOrientation(newOrientation);
+                    activeView3D.SaveOrientation();
+                    trans.Commit();
+                }
+
+                animator.IncrementProgress();
 
                 frameTimer.Restart();
             }

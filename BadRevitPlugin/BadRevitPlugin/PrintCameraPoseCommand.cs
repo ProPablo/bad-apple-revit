@@ -10,7 +10,7 @@ namespace BadRevitPlugin
     [Regeneration(RegenerationOption.Manual)]
     public class PrintCameraPoseCommand : IExternalCommand
     {
-        private CameraAnimator animator = new();
+        private CameraAnimator animator = new(1);
 
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
@@ -63,14 +63,17 @@ namespace BadRevitPlugin
                 }
 
                 trans.Start();
-                var endQuat = animator.ViewOrientationToQuaternion(animator.EndOrientation);
-                var endOrient = animator.QuaternionToViewVectors(endQuat);
-                var endOrientAll = new ViewOrientation3D(animator.EndOrientation.EyePosition, endOrient.up, endOrient.forward);
+                //var endQuat = animator.ViewOrientationToQuaternion(animator.EndOrientation);
+                //var endOrient = animator.QuaternionToViewVectors(endQuat);
+                //var endOrientAll = new ViewOrientation3D(animator.EndOrientation.EyePosition, endOrient.up, endOrient.forward);
 
-                //ViewOrientation3D newOrientation = animator.StartOrientation;
 
-                activeView3D.SetOrientation(endOrientAll);
-                //activeView3D.SetOrientation(animator.EndOrientation);
+                //activeView3D.SetOrientation(endOrientAll);
+
+                animator._progress = 1;
+                ViewOrientation3D newOrientation = animator.GetCurrentOrientation();
+
+                activeView3D.SetOrientation(newOrientation);
 
 
                 //This has to be called for some reason to "rerender" the view.

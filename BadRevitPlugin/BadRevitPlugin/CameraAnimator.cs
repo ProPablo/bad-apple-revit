@@ -19,11 +19,11 @@ namespace BadRevitPlugin
         private Quaternion endRotation;
 
         // Animation progress (0.0 to 1.0)
-        private double _progress = 0.0;
+        public double _progress = 0.0;
         private double _progressStep = 0.01; // Increment per frame
-        double totalFrames = 50;
+        double _totalFrames = 50;
 
-        public CameraAnimator()
+        public CameraAnimator(int totalFrames)
         {
             {
                 XYZ eyePos = new XYZ(-5.19444907657589, -19.1078684286434, -12.9939517178807);
@@ -47,7 +47,7 @@ namespace BadRevitPlugin
 
 
 
-            _progressStep = 1.0 / totalFrames;
+            _progressStep = 1.0 / (double)totalFrames;
 
             // Convert view orientations to quaternions
             startRotation = ViewOrientationToQuaternion(StartOrientation);
@@ -68,6 +68,9 @@ namespace BadRevitPlugin
 
             // Convert quaternion back to forward and up vectors
             (XYZ forward, XYZ up) = QuaternionToViewVectors(currentRotation);
+
+
+
 
             return new ViewOrientation3D(eyePos, up, forward);
         }
@@ -113,12 +116,22 @@ namespace BadRevitPlugin
             // -Forward = Z axis (negative because camera looks down -Z)
 
             // Build a rotation matrix
+            //Matrix4x4 rotationMatrix = new Matrix4x4(
+            //    (float)right.X, (float)right.Y, (float)right.Z, 0,
+            //    (float)up.X, (float)up.Y, (float)up.Z, 0,
+            //    (float)-forward.X, (float)-forward.Y, (float)-forward.Z, 0,
+            //    0, 0, 0, 1
+            //);
+
+            //New lol
             Matrix4x4 rotationMatrix = new Matrix4x4(
-                (float)right.X, (float)right.Y, (float)right.Z, 0,
-                (float)up.X, (float)up.Y, (float)up.Z, 0,
-                (float)-forward.X, (float)-forward.Y, (float)-forward.Z, 0,
-                0, 0, 0, 1
-            );
+              (float)right.X, (float)up.X, (float)-forward.X, 0,  // Row 1: X components
+              (float)right.Y, (float)up.Y, (float)-forward.Y, 0,  // Row 2: Y components
+              (float)right.Z, (float)up.Z, (float)-forward.Z, 0,  // Row 3: Z components
+              0, 0, 0, 1   // Row 4: homogeneous
+          );
+
+
 
             // Extract quaternion from rotation matrix
             Quaternion quat = Quaternion.CreateFromRotationMatrix(rotationMatrix);
@@ -146,7 +159,21 @@ namespace BadRevitPlugin
             XYZ up = new XYZ(upVec.X, upVec.Y, upVec.Z);
             XYZ forward = new XYZ(forwardVec.X, forwardVec.Y, forwardVec.Z);
 
+            up = up.Normalize();
+            forward = forward.Normalize();
+
+
+
+
+
+            //Make sure forward and up are orthogonal
+            XYZ right = forward.CrossProduct(up).Normalize();
+            
+            up = forward.CrossProduct(-right).Normalize();
+
+
             return (forward.Normalize(), up.Normalize());
         }
+
     }
 }

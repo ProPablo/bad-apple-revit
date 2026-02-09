@@ -13,12 +13,13 @@ namespace BadRevitPlugin
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            // Initialize instance if needed
-            if (BadApple.Instance == null)
+            //Might be good case for self managed singleton
+            if (BadApple.Resources == null)
             {
-                BadApple.Instance = new BadAppleInstance();
                 BadApple.Application = commandData.Application;
-                var res = BadApple.Instance.InitResources(commandData.Application.ActiveUIDocument.Document);
+                BadApple.Resources = new RevitResources();
+                var res = BadApple.Resources.InitResources(commandData.Application.ActiveUIDocument.Document);
+
                 if (res != Result.Succeeded)
                 {
                     BadApple.Instance = null;
@@ -26,6 +27,7 @@ namespace BadRevitPlugin
                 }
             }
 
+            BadApple.Instance = new BadAppleInstance();
             BadApple.Instance.isRunning = false;
 
             // Draw the frame

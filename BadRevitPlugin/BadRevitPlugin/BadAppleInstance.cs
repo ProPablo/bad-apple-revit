@@ -21,21 +21,20 @@ namespace BadRevitPlugin
         public DateTime lastTimeRun;
         private Stopwatch frameTimer;
         private const double FRAME_INTERVAL_SECONDS = 0.5;
+
+        RevitResources resources;
         public BadAppleInstance()
         {
             loader = new MatLoader();
             loader.Load();
+
+            isRunning = true;
+            animator = new CameraAnimator(loader.context.frames.Count);
+
+            frameTimer = Stopwatch.StartNew();
+
+            resources = BadApple.Resources;
         }
-
-        // Pre-init vars
-        Document doc;
-        double wallHeight;
-        WallType wallType;
-        Level level;
-
-        double ceilingHeight;
-        CeilingType ceilingType;
-
 
         // Mid run state
         List<ElementId> roomIds = new();
@@ -43,63 +42,6 @@ namespace BadRevitPlugin
         List<ElementId> ceilingIds = new();
 
         public bool isRunning = false;
-
-        List<ElementId> existingElements;
-        
-
-        public Result InitResources(Document doc)
-        {
-            this.doc = doc;
-
-            frameTimer = Stopwatch.StartNew();
-
-            //double wallHeight = 10.0; // 10 feet
-            var instancedWalls = GetWalls();
-
-            existingElements = instancedWalls.Select(w => w.Id).ToList();
-
-            var instancedWall = instancedWalls.FirstOrDefault();
-
-            if (instancedWall == null)
-            {
-                TaskDialog.Show("Error", "Wall not found");
-                return Result.Failed;
-            }
-
-            // Get its type, level, and height
-            wallType = instancedWall.WallType;
-            level = doc.GetElement(instancedWall.LevelId) as Level;
-            wallHeight = instancedWall.get_Parameter(BuiltInParameter.WALL_USER_HEIGHT_PARAM).AsDouble();
-
-
-            // Get ceiling type by name
-            ceilingType = new FilteredElementCollector(doc)
-                .OfClass(typeof(CeilingType))
-                .Cast<CeilingType>()
-                .FirstOrDefault(c => c.Name.Contains("Epic ceiling"));
-
-            Ceiling ceiling = new FilteredElementCollector(doc)
-                .OfClass(typeof(Ceiling))
-                .Cast<Ceiling>()
-                .FirstOrDefault(c => c.Name.Contains("Epic ceiling"));
-
-            existingElements.Add(ceiling.Id);
-
-            if (ceilingType == null || ceiling == null)
-            {
-                TaskDialog.Show("Error", "Ceiling type or ceiling not found");
-                return Result.Failed;
-            }
-
-            Parameter param = ceiling.get_Parameter(BuiltInParameter.CEILING_HEIGHTABOVELEVEL_PARAM);
-            ceilingHeight = param.AsDouble();
-
-            isRunning = true;
-
-            animator = new CameraAnimator(loader.context.frames.Count);
-
-            return Result.Succeeded;
-        }
 
         public Result DrawSingleBoundary(RoomBoundary room, Document doc)
         {
@@ -115,7 +57,7 @@ namespace BadRevitPlugin
 
                 Line wallLine = Line.CreateBound(start, end);
 
-                Wall wall = Wall.Create(doc, wallLine, wallType.Id, level.Id, wallHeight, 0, false, false);
+                Wall wall = Wall.Create(doc, wallLine, resources.wallType.Id, resources.level.Id, resources.wallHeight, 0, false, false);
 
                 wallIds.Add(wall.Id);
 
@@ -135,7 +77,7 @@ namespace BadRevitPlugin
 
                     Line wallLine = Line.CreateBound(start, end);
 
-                    Wall wall = Wall.Create(doc, wallLine, wallType.Id, level.Id, wallHeight, 0, false, false);
+                    Wall wall = Wall.Create(doc, wallLine, resources.wallType.Id, resources.level.Id, resources.wallHeight, 0, false, false);
 
                     wallIds.Add(wall.Id);
 
@@ -155,12 +97,12 @@ namespace BadRevitPlugin
             }
 
 
-            var createdRoom = doc.Create.NewRoom(level, uvPoint);
+            var createdRoom = doc.Create.NewRoom(resources.level, uvPoint);
             roomIds.Add(createdRoom.Id);
 
-            var newCeiling = Ceiling.Create(doc, ceilingCurveLoops, ceilingType.Id, level.Id);
+            var newCeiling = Ceiling.Create(doc, ceilingCurveLoops, resources.ceilingType.Id, resources.level.Id);
             Parameter newCeilingParam = newCeiling.get_Parameter(BuiltInParameter.CEILING_HEIGHTABOVELEVEL_PARAM);
-            newCeilingParam.Set(ceilingHeight);
+            newCeilingParam.Set(resources.ceilingHeight);
             ceilingIds.Add(newCeiling.Id);
 
             return Result.Succeeded;
@@ -176,10 +118,10 @@ namespace BadRevitPlugin
 
             var toDelete = roomIds.Concat(wallIds).Concat(ceilingIds);
 
-            Transaction transaction = new Transaction(doc);
+            Transaction transaction = new Transaction(resources.doc);
             transaction.Start("Removing prev frame items");
 
-            doc.Delete(toDelete.ToList());
+            resources.doc.Delete(toDelete.ToList());
 
             transaction.Commit();
 
@@ -196,7 +138,7 @@ namespace BadRevitPlugin
 
         public Result DrawFrame(int frameIndex)
         {
-            using (Transaction transaction = new Transaction(doc))
+            using (Transaction transaction = new Transaction(resources.doc))
             {
 
                 FailureHandlingOptions failureOptions = transaction.GetFailureHandlingOptions();
@@ -213,11 +155,11 @@ namespace BadRevitPlugin
                 {
                     var room = frame.Rooms[i];
 
-                    SubTransaction subTransaction = new SubTransaction(doc);
+                    SubTransaction subTransaction = new SubTransaction(resources.doc);
                     subTransaction.Start();
 
                     var startTime = DateTime.Now;
-                    DrawSingleBoundary(room, doc);
+                    DrawSingleBoundary(room, resources.doc);
                     var timeTaken = DateTime.Now - startTime;
                     lastTimeRun = DateTime.Now;
 
@@ -225,6 +167,8 @@ namespace BadRevitPlugin
                 }
 
                 transaction.Commit();
+
+                animator.Tick();
 
                 //TaskDialog.Show(
                 //    "Performance",
@@ -235,22 +179,6 @@ namespace BadRevitPlugin
 
             return Result.Succeeded;
         }
-
-
-        /// <summary>
-        /// This gets the walltype when there are no instances
-        /// </summary>
-        /// <returns></returns>
-        List<Wall> GetWalls()
-        {
-            var doc = BadApple.Application.ActiveUIDocument.Document;
-            // Get a basic wall type
-            return new FilteredElementCollector(doc)
-                .OfClass(typeof(Wall))
-                .Cast<Wall>()
-                .ToList();
-        }
-
 
         public void Tick()
         {
@@ -284,19 +212,6 @@ namespace BadRevitPlugin
                 frameNum++;
                 DrawFrame(frameNum);
 
-                var activeView3D = doc.ActiveView as View3D;
-
-                // Animate camera
-                using (Transaction trans = new Transaction(doc, "Animate Camera"))
-                {
-                    trans.Start();
-                    ViewOrientation3D newOrientation = animator.GetCurrentOrientation();
-                    activeView3D.SetOrientation(newOrientation);
-                    activeView3D.SaveOrientation();
-                    trans.Commit();
-                }
-
-                animator.IncrementProgress();
 
                 frameTimer.Restart();
             }
@@ -343,9 +258,9 @@ namespace BadRevitPlugin
             var outerLoop = CurveLoop.Create(outerCurves);
             var innerLoop = CurveLoop.Create(innerCurves);
 
-            var newCeiling = Ceiling.Create(doc, new List<CurveLoop> { outerLoop, innerLoop }, ceilingType.Id, level.Id);
+            var newCeiling = Ceiling.Create(resources.doc, new List<CurveLoop> { outerLoop, innerLoop }, resources.ceilingType.Id, resources.level.Id);
             Parameter newCeilingParam = newCeiling.get_Parameter(BuiltInParameter.CEILING_HEIGHTABOVELEVEL_PARAM);
-            newCeilingParam.Set(ceilingHeight);
+            newCeilingParam.Set(resources.ceilingHeight);
 
         }
 

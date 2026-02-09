@@ -19,6 +19,7 @@ namespace BadRevitPlugin
     {
         public static BadAppleInstance Instance = null;
         public static UIApplication Application = null;
+        public static RevitResources Resources = null;
 
         public static string BadAppleRoot;
         public static string ImgSaveDir;
@@ -27,7 +28,6 @@ namespace BadRevitPlugin
 
         public BadApple()
         {
-
             string assemblyWorkingDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             Console.WriteLine($"Current Working Directory: {assemblyWorkingDir}");
 
@@ -39,7 +39,6 @@ namespace BadRevitPlugin
 
             MatPath = Path.Combine( BadAppleRoot, matName );
             ImgSaveDir = Path.Combine( BadAppleRoot, "imgs" );
-            
         }
 
         public void Dispose()

@@ -16,25 +16,23 @@ namespace BadRevitPlugin
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            //if (BadApple.Instance == null)
+            if (BadApple.Resources == null)
             {
-                BadApple.Instance = new BadAppleInstance();
                 BadApple.Application = commandData.Application;
-                var res = BadApple.Instance.InitResources(commandData.Application.ActiveUIDocument.Document);
-                //if (res != Result.Succeeded)
-                //{
-                //    BadApple.Instance = null;
-                //    return res;
-                //}
+                BadApple.Resources = new RevitResources();
+                var res = BadApple.Resources.InitResources(commandData.Application.ActiveUIDocument.Document);
 
-                return BadApple.Instance.DrawFirstFrame();
+                if (res != Result.Succeeded)
+                {
+                    BadApple.Instance = null;
+                    return res;
+                }
             }
-            //else
-            //{
-            //    return BadApple.Instance.DrawFirstFrame();
-            //}
-            // TODO cancel the operation here
-            return Result.Cancelled;
+
+            BadApple.Instance = new BadAppleInstance();
+            BadApple.Application = commandData.Application;
+
+            return BadApple.Instance.DrawFirstFrame();
         }
     }
 }

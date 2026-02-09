@@ -1,4 +1,5 @@
 ﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,6 +24,11 @@ namespace BadRevitPlugin
         private double _progressStep = 0.01; // Increment per frame
         double _totalFrames = 50;
 
+        UIView activeUIView;
+
+        XYZ tl2DView = new XYZ(-214.996664008033, -489.966945269214, 0);
+        XYZ br2DView = new XYZ(965.514781600972, 134.946972641244, 0);
+
         public CameraAnimator(int totalFrames)
         {
             {
@@ -45,14 +51,40 @@ namespace BadRevitPlugin
                 EndOrientation = new ViewOrientation3D(eyePos, upDir, forwardDir);
             }
 
-
-
             _progressStep = 1.0 / (double)totalFrames;
 
             // Convert view orientations to quaternions
             startRotation = ViewOrientationToQuaternion(StartOrientation);
             //endRotation = ViewOrientationToQuaternion(end);
 
+            var uidoc = BadApple.Application.ActiveUIDocument;
+            activeUIView = uidoc.GetOpenUIViews().FirstOrDefault(uv => uv.ViewId == uidoc.ActiveView.Id);
+
+        }
+
+        public void Tick()
+        {
+            var resources = BadApple.Resources;
+            var activeView3D = resources.doc.ActiveView as View3D;
+            if (activeView3D != null)
+            {
+                // Animate camera
+                using (Transaction trans = new Transaction(resources.doc, "Animate Camera"))
+                {
+                    trans.Start();
+                    ViewOrientation3D newOrientation = GetCurrentOrientation();
+                    activeView3D.SetOrientation(newOrientation);
+                    activeView3D.SaveOrientation();
+                    trans.Commit();
+                }
+
+                IncrementProgress();
+            }
+            //2D view
+            else
+            {
+                activeUIView.ZoomAndCenterRectangle(tl2DView, br2DView);
+            }
         }
 
         public ViewOrientation3D GetCurrentOrientation()
@@ -68,9 +100,6 @@ namespace BadRevitPlugin
 
             // Convert quaternion back to forward and up vectors
             (XYZ forward, XYZ up) = QuaternionToViewVectors(currentRotation);
-
-
-
 
             return new ViewOrientation3D(eyePos, up, forward);
         }
@@ -131,8 +160,6 @@ namespace BadRevitPlugin
               0, 0, 0, 1   // Row 4: homogeneous
           );
 
-
-
             // Extract quaternion from rotation matrix
             Quaternion quat = Quaternion.CreateFromRotationMatrix(rotationMatrix);
             return quat;
@@ -162,18 +189,12 @@ namespace BadRevitPlugin
             up = up.Normalize();
             forward = forward.Normalize();
 
-
-
-
-
             //Make sure forward and up are orthogonal
             XYZ right = forward.CrossProduct(up).Normalize();
-            
             up = forward.CrossProduct(-right).Normalize();
 
 
             return (forward.Normalize(), up.Normalize());
         }
-
     }
 }

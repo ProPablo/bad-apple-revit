@@ -2,6 +2,7 @@
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using System;
+using System.Linq;
 using System.Text;
 
 namespace BadRevitPlugin
@@ -10,18 +11,35 @@ namespace BadRevitPlugin
     [Regeneration(RegenerationOption.Manual)]
     public class PrintCameraPoseCommand : IExternalCommand
     {
-        private CameraAnimator animator = new(1);
+        private CameraAnimator animator;
 
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+            BadApple.Application = commandData.Application;
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Document doc = uidoc.Document;
             View3D view3D = doc.ActiveView as View3D;
+            animator = new(1);
+
+            // Get UIView from UIDocument
+            UIView activeUIView = uidoc.GetOpenUIViews().FirstOrDefault(uv => uv.ViewId == uidoc.ActiveView.Id);
+
+            var corners = activeUIView.GetZoomCorners();
+            StringBuilder sb = new StringBuilder();
+
+
+            sb.AppendLine($"=== View Extents ===");
+            sb.AppendLine($"XYZ tlView = new XYZ({corners[0].X}, {corners[0].Y}, {corners[0].Z});");
+            sb.AppendLine($"XYZ brView = new XYZ({corners[1].X}, {corners[1].Y}, {corners[1].Z});");
+            sb.AppendLine();
 
             if (view3D == null)
             {
-                TaskDialog.Show("Error", "Please activate a 3D view first");
+                //We are in a 2D view
+                View view = doc.ActiveView as View;
+
+                TaskDialog.Show("2d view", "Please activate a 3D view first");
                 return Result.Failed;
             }
 
@@ -31,7 +49,6 @@ namespace BadRevitPlugin
             XYZ upDirection = orientation.UpDirection;
             XYZ forwardDirection = orientation.ForwardDirection;
 
-            StringBuilder sb = new StringBuilder();
             sb.AppendLine("=== CAMERA POSE ===");
             sb.AppendLine();
             sb.AppendLine($"Eye Position: ({eyePosition.X:F6}, {eyePosition.Y:F6}, {eyePosition.Z:F6})");
@@ -42,6 +59,9 @@ namespace BadRevitPlugin
             sb.AppendLine($"XYZ eyePos = new XYZ({eyePosition.X}, {eyePosition.Y}, {eyePosition.Z});");
             sb.AppendLine($"XYZ upDir = new XYZ({upDirection.X}, {upDirection.Y}, {upDirection.Z});");
             sb.AppendLine($"XYZ forwardDir = new XYZ({forwardDirection.X}, {forwardDirection.Y}, {forwardDirection.Z});");
+            sb.AppendLine();
+
+
 
             // Also write to console for easy copying
             Console.WriteLine(sb.ToString());

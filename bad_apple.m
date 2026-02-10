@@ -20,6 +20,9 @@ boundary_nums = zeros(1, num_frames);
 
 figure
 
+v = VideoWriter('regions_vid.mp4', 'MPEG-4');
+v.FrameRate = 30;
+open(v);
 
 for i=1:num_frames
    frame = read(bad_vid, i + start_frame);
@@ -29,8 +32,10 @@ for i=1:num_frames
    [B,L, n, A] = bwboundaries(BW2);
    boundary_num = 0;
    
-   imshow(label2rgb(L, @jet, [.5 .5 .5]))
+   regions_img = label2rgb(L, @jet, [.5 .5 .5]);
+   imshow(regions_img)
    hold on
+   writeVideo(v, regions_img);
 
    for k = 1:length(B)
 
@@ -39,7 +44,6 @@ for i=1:num_frames
       if (sum(A(k, :)) == 0) %isparent
          boundary = downsample(boundary, 2);
          ps = polyshape(boundary(:,2), boundary(:,1));
-         ps = sortregions(ps,'perimeter','descend');
          ps_size = size(ps.Vertices);
          if (ps.NumRegions == 0)
             continue
@@ -49,6 +53,7 @@ for i=1:num_frames
          end
          ps = polybuffer(ps, 0.5, "JointType","square");
          ps = simplify(ps, "KeepCollinearPoints",false); % pre sure this is doing nothing but just in case
+         ps = sortregions(ps,'perimeter','descend');
          regs = regions(ps);
          ps = regs(1);
          [x,y] = centroid(ps);
@@ -85,8 +90,9 @@ for i=1:num_frames
    end
    boundary_nums(i) = boundary_num;
    drawnow;
-pause(0.1)
+%pause(0.1)
 end
+close(v);
 
 save('bad_apple.mat', 'simple_bounds', "num_frames", "centroids", "boundary_nums");
 
@@ -134,7 +140,9 @@ close(v);
 %% bad apple single frame read
 %bad_img = imread('bad/0004.png');
 %bad_img = imread('bad/0025.png');
-bad_img = imread('bad/0058.png'); % Curve length is too small for Revit's tolerance (as identified by Application.ShortCurveTolerance).
+%bad_img = imread('bad/0058.png'); % Curve length is too small for Revit's tolerance (as identified by Application.ShortCurveTolerance).
+bad_img = read(bad_vid, 179);
+
 % start and end points are the same here
 
 
@@ -146,6 +154,10 @@ figure;
 montage({bad_img,BW,BW2});
 
 [B,L, n, A] = bwboundaries(BW2);
+
+figure
+imshow(label2rgb(L, @jet, [.5 .5 .5]))
+hold on
 
 
 %% simplified with polyshape only output
@@ -167,22 +179,26 @@ boundary_num = 0;
 for k = 1:length(B)
 
    boundary = B{k};
-   plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
+   plot(boundary(:,2), boundary(:,1), 'b', 'LineWidth', 2)
    if (sum(A(k, :)) == 0) %isparent
-      boundary = downsample(boundary, 2);
+      %boundary = downsample(boundary, 2);
       % By default bwboundaries provides coords in y, x
       ps = polyshape(boundary(:,2), boundary(:,1))
+      %ps = rmslivers(ps,1); 
+      
       %Sometimes you get sub regions TODO determine if we need to use because
       %ps by default splits verteces by NaNs
-      ps = sortregions(ps,'perimeter','descend');
-
-      if (ps.NumRegions == 0)
-         continue
-      end
+        ps_size = size(ps.Vertices);
+         if (ps.NumRegions == 0)
+            continue
+         end
+         if (ps_size <= MIN_SIMPLIFIED_POINTS)
+            continue
+         end
 
       ps = polybuffer(ps, 0.5, "JointType","square");
       ps = simplify(ps, "KeepCollinearPoints",false); % pre sure this is doing nothing but just in case
-
+      ps = sortregions(ps,'area','descend'); % make sure this is the last operation before selecting first since all other operations fry region order
       regs = regions(ps);
       ps = regs(1);
 
@@ -192,7 +208,7 @@ for k = 1:length(B)
       % Find all children of this parent
       children_idx = find(A(:, k) == 1);
 
-      % Add children (holes)
+      % % Add children (holes)
       for j = 1:length(children_idx)
          child_idx = children_idx(j);
          % child preprocessing
@@ -217,10 +233,6 @@ for k = 1:length(B)
 
       simplified = ps.Vertices .* [1, -1];
 
-
-      if (simplified_size(1) <= MIN_SIMPLIFIED_POINTS)
-         continue
-      end
 
       plot(x,y,'r*')
       plot(ps)
@@ -291,11 +303,10 @@ plot(boundary(:,2), boundary(:,1), 'g', 'LineWidth', 2)
 % find(ps.Vertices(:,1) == 243 & ps.Vertices(:,2) == 6 )
 
 
-
 % By default polyshape simplifies
 %ps = polyshape(boundary(:,2), boundary(:,1), "Simplify", false)
 ps = polyshape(boundary(:,2), boundary(:,1))
-ps = sortregions(ps,'perimeter','descend');
+
 
 ps = polybuffer(ps, 0.5, "JointType","square");
 %ps = polybuffer(ps, -0.1);
@@ -303,6 +314,7 @@ ps = polybuffer(ps, 0.5, "JointType","square");
 
 ps = simplify(ps, "KeepCollinearPoints",false);
 %ps = rmslivers(ps,1); % THis techinically fixes the problem
+ps = sortregions(ps,'area','descend');
 plot(ps);
 %This xy is correct
 [x,y] = centroid(ps);
@@ -323,6 +335,8 @@ for k = 1:numel(regs)
    text(cx, cy, num2str(k), ...
       'HorizontalAlignment','center', ...
       'FontSize',12, 'FontWeight','bold');
+   k
+   area(regs(k))
 end
 
 axis equal

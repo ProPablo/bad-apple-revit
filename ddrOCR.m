@@ -1,7 +1,7 @@
 %% INIT
 clear; close all;
 
-img = imread('ocr_test.jpg');
+img = imread('ocr_test_2.jpg');
 figure
 imshow(img)
 % line = drawline;
@@ -20,8 +20,8 @@ x2 = linePos(2, 1);
 
 angle = rad2deg( atan2(y2 - y1, x2 - x1));
 
-angle = -4;
-%img = imrotate(img, angle);
+%angle = -4;
+img = imrotate(img, angle);
 figure 
 imshow(img)
 

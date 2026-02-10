@@ -116,12 +116,44 @@ namespace BadRevitPlugin
             // Have to include this dll lib to get this to work
             ////UIFrameworkServices.QuickAccessToolBarService.performMultipleUndoRedoOperations(true, 1)
 
-            var toDelete = roomIds.Concat(wallIds).Concat(ceilingIds);
+            //THis is using ids we had saved in the list 
+            //var toDelete = roomIds.Concat(wallIds).Concat(ceilingIds);
+
+
+            var doc = resources.doc;
+
+            // Get all walls
+            var walls = new FilteredElementCollector(doc)
+                .OfClass(typeof(Wall))
+                .Cast<Wall>()
+                .Select(w => w.Id)
+                .ToList();
+
+            // Get all ceilings
+            var ceilings = new FilteredElementCollector(doc)
+                .OfClass(typeof(Ceiling))
+                .Cast<Ceiling>()
+                .Select(c => c.Id)
+                .ToList();
+
+            // Get all rooms
+            var rooms = new FilteredElementCollector(doc)
+                .OfClass(typeof(SpatialElement))
+                .OfCategory(BuiltInCategory.OST_Rooms)
+                .Select(r => r.Id)
+                .ToList();
+
+            // Combine all elements to delete
+            var toDelete = walls.Concat(ceilings).Concat(rooms).ToList();
+
 
             Transaction transaction = new Transaction(resources.doc);
             transaction.Start("Removing prev frame items");
 
-            resources.doc.Delete(toDelete.ToList());
+            if (toDelete.Count > 0)
+            {
+                doc.Delete(toDelete);
+            }
 
             transaction.Commit();
 

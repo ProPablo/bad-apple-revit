@@ -8,7 +8,7 @@ namespace BadRevitPlugin
     [Regeneration(RegenerationOption.Manual)]
     public class DrawSingleFrameCommand : IExternalCommand
     {
-        private const int FRAME_INDEX = 15; // Change this to draw a different frame
+        //private const int FRAME_INDEX = 185; // Change this to draw a different frame
         //private const int FRAME_INDEX = 2; 
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
@@ -27,11 +27,23 @@ namespace BadRevitPlugin
                 }
             }
 
+            // Show input dialog
+            var inputDialog = new SelectFrameNumPopup();
+            bool? result = inputDialog.ShowDialog();
+
+            if (result != true)
+            {
+                return Result.Cancelled;
+            }
+
+            int frameIndex = inputDialog.FrameIndex;
+
+
             BadApple.Instance = new BadAppleInstance();
             BadApple.Instance.isRunning = false;
 
             // Draw the frame
-            return BadApple.Instance.DrawFrame(FRAME_INDEX);
+            return BadApple.Instance.DrawFrame(frameIndex);
         }
     }
 }

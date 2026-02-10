@@ -26,8 +26,8 @@ namespace BadRevitPlugin
 
         UIView activeUIView;
 
-        XYZ tl2DView = new XYZ(-214.996664008033, -489.966945269214, 0);
-        XYZ br2DView = new XYZ(965.514781600972, 134.946972641244, 0);
+        XYZ tl2DView = new XYZ(-136.325334491067, -385.757556358248, 0);
+        XYZ br2DView = new XYZ(639.880103568607, 25.133488540549, 0);
 
         public CameraAnimator(int totalFrames)
         {

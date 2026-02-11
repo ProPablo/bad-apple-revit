@@ -14,11 +14,14 @@ namespace BadRevitPlugin
         public static void TakeCurrentFrameScreenshot()
         {
             var currentIndex = BadApple.Instance.frameNum;
-            var frameFileName = $"{currentIndex:D4}.jpg";
-
-            TakeSingleScreenshot(frameFileName);
+            TakeIndexedFrameScreenShot(currentIndex);
         }
 
+        public static void TakeIndexedFrameScreenShot(int currentIndex)
+        {
+            var frameFileName = $"{currentIndex:D4}.jpg";
+            TakeSingleScreenshot(frameFileName);
+        }
 
         public static void TakeSingleScreenshot(string picName = "test.jpg")
         {

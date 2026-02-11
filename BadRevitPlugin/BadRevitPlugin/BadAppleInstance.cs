@@ -15,7 +15,9 @@ namespace BadRevitPlugin
     {
         public MatLoader loader;
         public CameraAnimator animator;
-        public int frameNum = 0;
+        public int frameNum = 823;
+        public int endFrame = 1074;
+        //public int endFrame = int.MaxValue;
 
 
         public DateTime lastTimeRun;
@@ -97,8 +99,9 @@ namespace BadRevitPlugin
             }
 
 
-            var createdRoom = doc.Create.NewRoom(resources.level, uvPoint);
-            roomIds.Add(createdRoom.Id);
+            // Not actually eneded for rendering even in 3d
+            //var createdRoom = doc.Create.NewRoom(resources.level, uvPoint);
+            //roomIds.Add(createdRoom.Id);
 
             var newCeiling = Ceiling.Create(doc, ceilingCurveLoops, resources.ceilingType.Id, resources.level.Id);
             Parameter newCeilingParam = newCeiling.get_Parameter(BuiltInParameter.CEILING_HEIGHTABOVELEVEL_PARAM);
@@ -233,7 +236,10 @@ namespace BadRevitPlugin
 
                 UndoLastFrame();
 
-                if (frameNum + 1 >= loader.context.frames.Count)
+                //set endFrame to inf if we just want it to go to .mat end
+                var lastFrame = Math.Min(endFrame, loader.context.frames.Count);
+
+                if (frameNum + 1 >= lastFrame)
                 {
                     frameTimer.Stop();
                     TaskDialog.Show("Finished all tframes!!!", "Done");
@@ -311,15 +317,17 @@ namespace BadRevitPlugin
         public FailureProcessingResult PreprocessFailures(FailuresAccessor failuresAccessor)
         {
             IList<FailureMessageAccessor> failures = failuresAccessor.GetFailureMessages();
+            bool forceCommit = false;
 
             foreach (FailureMessageAccessor failure in failures)
             {
                 FailureSeverity severity = failure.GetSeverity();
+                var failureId = failure.GetFailureDefinitionId();
+
 
                 if (severity == FailureSeverity.Warning)
                 {
 
-                    var failureId = failure.GetFailureDefinitionId();
                     // Delete unwanted warnings
                     //https://www.revitapidocs.com/2016/c0b6a1e7-ac2c-daaf-031b-b7b1fa946d32.htm
                     //These are not compile time constants so we cant use a switch statement on em
@@ -353,16 +361,32 @@ namespace BadRevitPlugin
                     //failuresAccessor.DeleteElements(failingElementIds.ToList());
 
 
-                    //failure.SetCurrentResolutionType(FailureResolutionType.DeleteElements);
+                    if (failureId == BuiltInFailures.JoinElementsFailures.CannotJoinElementsError)
+                    {
+                        failure.SetCurrentResolutionType(FailureResolutionType.DetachElements);
+                        failuresAccessor.ResolveFailure(failure);
+                        forceCommit = true;
+                    }
+                    if (failureId == BuiltInFailures.CreationFailures.CannotDrawWallsError)
+                    {
+                        failure.SetCurrentResolutionType(FailureResolutionType.DeleteElements);
+                        failuresAccessor.ResolveFailure(failure);
+                        forceCommit = true;
+                    }
 
-                    //failuresAccessor.ResolveFailure(failure);
 
                     //If we get here, perhaps just undo and force the next run to rerun the current frame and try with a different wallthickness
                 }
             }
 
-            return FailureProcessingResult.Continue;
+            if (forceCommit)
+            {
+                return FailureProcessingResult.ProceedWithCommit;
+            }
+            else
+            {
+                return FailureProcessingResult.Continue;
+            }
         }
     }
-
 }

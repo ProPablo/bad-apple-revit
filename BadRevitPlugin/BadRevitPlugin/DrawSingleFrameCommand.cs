@@ -18,12 +18,12 @@ namespace BadRevitPlugin
             {
                 BadApple.Application = commandData.Application;
                 BadApple.Resources = new RevitResources();
-                var res = BadApple.Resources.InitResources(commandData.Application.ActiveUIDocument.Document);
+                var initRes = BadApple.Resources.InitResources(commandData.Application.ActiveUIDocument.Document);
 
-                if (res != Result.Succeeded)
+                if (initRes != Result.Succeeded)
                 {
                     BadApple.Instance = null;
-                    return res;
+                    return initRes;
                 }
             }
 
@@ -43,7 +43,12 @@ namespace BadRevitPlugin
             BadApple.Instance.isRunning = false;
 
             // Draw the frame
-            return BadApple.Instance.DrawFrame(frameIndex);
+            var res = BadApple.Instance.DrawFrame(frameIndex);
+            if (res == Result.Succeeded)
+            {
+                ScreenshotService.TakeIndexedFrameScreenShot(frameIndex);
+            }
+            return res;
         }
     }
 }

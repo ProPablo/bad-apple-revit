@@ -141,7 +141,7 @@ close(v);
 %bad_img = imread('bad/0004.png');
 %bad_img = imread('bad/0025.png');
 %bad_img = imread('bad/0058.png'); % Curve length is too small for Revit's tolerance (as identified by Application.ShortCurveTolerance).
-bad_img = read(bad_vid, 179);
+bad_img = read(bad_vid, 445);
 
 % start and end points are the same here
 

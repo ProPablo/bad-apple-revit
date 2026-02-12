@@ -29,7 +29,11 @@ for i=1:num_frames
    gray_img = rgb2gray(frame);
    BW = imbinarize(gray_img, 'global'); % we dont need adaptive here, adaptive is good for eg a half lit page
    BW2 = imcomplement(BW); % invert selection
-   [B,L, n, A] = bwboundaries(BW2);
+   
+   se = strel('disk', 1); % merge very close eedges so we dont get sub regions in ps
+   BW3 = imopen(BW2, se);
+   
+   [B,L, n, A] = bwboundaries(BW3);
    boundary_num = 0;
    
    regions_img = label2rgb(L, @jet, [.5 .5 .5]);
@@ -141,14 +145,18 @@ close(v);
 %bad_img = imread('bad/0004.png');
 %bad_img = imread('bad/0025.png');
 %bad_img = imread('bad/0058.png'); % Curve length is too small for Revit's tolerance (as identified by Application.ShortCurveTolerance).
-bad_img = read(bad_vid, 445);
-
+%bad_img = read(bad_vid, 1884);
+%bad_img = read(bad_vid, 1878);
+bad_img = read(bad_vid, 551);
 % start and end points are the same here
 
 
 gray_img = rgb2gray(bad_img);
 BW = imbinarize(gray_img, 'global'); % we dont need adaptive here, adaptive is good for eg a half lit page
 BW2 = imcomplement(BW); % invert selection
+
+se = strel('disk', 1); % merge very close eedges so we dont get sub regions in ps
+BW2 = imopen(BW2, se);
 
 figure;
 montage({bad_img,BW,BW2});
@@ -158,6 +166,26 @@ montage({bad_img,BW,BW2});
 figure
 imshow(label2rgb(L, @jet, [.5 .5 .5]))
 hold on
+
+% Plot boundaries and add labels at centroids
+for k = 1:length(B)
+    boundary = B{k};
+    plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
+    
+    % Calculate centroid
+    centroid_x = mean(boundary(:,2));
+    centroid_y = mean(boundary(:,1));
+    
+    % Add text label
+    text(centroid_x, centroid_y, num2str(k), ...
+        'Color', 'white', ...
+        'FontSize', 12, ...
+        'FontWeight', 'bold', ...
+        'HorizontalAlignment', 'center', ...
+        'BackgroundColor', 'black', ...
+        'EdgeColor', 'white', ...
+        'Margin', 2)
+end
 
 
 %% simplified with polyshape only output
@@ -181,10 +209,10 @@ for k = 1:length(B)
    boundary = B{k};
    plot(boundary(:,2), boundary(:,1), 'b', 'LineWidth', 2)
    if (sum(A(k, :)) == 0) %isparent
-      %boundary = downsample(boundary, 2);
+      boundary = downsample(boundary, 2);
       % By default bwboundaries provides coords in y, x
       ps = polyshape(boundary(:,2), boundary(:,1))
-      %ps = rmslivers(ps,1); 
+      ps = rmslivers(ps,1); 
       
       %Sometimes you get sub regions TODO determine if we need to use because
       %ps by default splits verteces by NaNs
@@ -295,7 +323,7 @@ save('bad_apple.mat', 'simple_bounds', "num_frames", "centroids", "boundary_nums
 
 figure;
 hold on;
-boundary = B{1};
+boundary = B{2};
 plot(boundary(:,2), boundary(:,1), 'g', 'LineWidth', 2)
 
 

@@ -15,9 +15,9 @@ namespace BadRevitPlugin
     {
         public MatLoader loader;
         public CameraAnimator animator;
-        public int frameNum = 823;
-        public int endFrame = 1074;
-        //public int endFrame = int.MaxValue;
+        public int frameNum = 0;
+        //public int endFrame = 1074;
+        public int endFrame = int.MaxValue;
 
 
         public DateTime lastTimeRun;

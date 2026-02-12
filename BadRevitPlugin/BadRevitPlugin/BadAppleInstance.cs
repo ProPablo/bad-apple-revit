@@ -22,7 +22,7 @@ namespace BadRevitPlugin
 
         public DateTime lastTimeRun;
         private Stopwatch frameTimer;
-        private const double FRAME_INTERVAL_SECONDS = 0.5;
+        private const double FRAME_INTERVAL_SECONDS = 0.1;
 
         RevitResources resources;
         public BadAppleInstance()

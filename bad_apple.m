@@ -4,14 +4,14 @@ clear; close all;
 % shoutout to mxb161 for dis
 bad_vid = VideoReader('bad-apple.mp4')
 
-APPROX_BOUNDARY_AMOUNT = 5;
+APPROX_BOUNDARY_AMOUNT = 7;
 MIN_SIMPLIFIED_POINTS = 4;
 
 %num_frames = bad_vid.NumFrames;
 %start_frame = 0;
 
-num_frames = 2000;
-start_frame = 0;
+num_frames = 100;
+start_frame = 545;
 
 
 simple_bounds = cell(num_frames, APPROX_BOUNDARY_AMOUNT);
@@ -48,6 +48,7 @@ for i=1:num_frames
       if (sum(A(k, :)) == 0) %isparent
          boundary = downsample(boundary, 2);
          ps = polyshape(boundary(:,2), boundary(:,1));
+         ps = rmslivers(ps,0.01);
          ps_size = size(ps.Vertices);
          if (ps.NumRegions == 0)
             continue
@@ -60,7 +61,7 @@ for i=1:num_frames
          ps = sortregions(ps,'perimeter','descend');
          regs = regions(ps);
          ps = regs(1);
-         [x,y] = centroid(ps);
+         
 
          children_idx = find(A(:, k) == 1);
          % Add children (holes)
@@ -81,8 +82,35 @@ for i=1:num_frames
             end
             ps = xor(ps, child_ps);
 
+             % Now find grandchildren (level 2 - luckily matlab doesnt double dip in making grandchildren children)
+            grandchildren_idx = find(A(:, child_idx) == 1);
+            
+            % Process each grandchild as a separate polyshape
+            for m = 1:length(grandchildren_idx)
+                grandchild_idx = grandchildren_idx(m);
+
+            grandchild_boundary = B{grandchild_idx};
+            grandchild_boundary = downsample(grandchild_boundary, 2);
+            grandchild_ps = polyshape(grandchild_boundary(:,2), grandchild_boundary(:,1));
+
+            grandchild_ps = polybuffer(grandchild_ps, 0.5, "JointType","square");
+            grandchild_ps = simplify(grandchild_ps, "KeepCollinearPoints",false);
+            grandchild_ps_size = size(child_ps.Vertices);
+
+            if (grandchild_ps.NumRegions == 0 | grandchild_ps_size < MIN_SIMPLIFIED_POINTS)
+                continue
+            end   
+
+            [x,y] = centroid(grandchild_ps);
+            grandchild_simplified = grandchild_ps.Vertices .* [1, -1];
+            boundary_num = boundary_num + 1;
+            simple_bounds{i, boundary_num} = grandchild_simplified;
+            centroids{i, boundary_num} = [x,-y];
+            end
+
          end
 
+         [x,y] = centroid(ps);
          simplified = ps.Vertices .* [1, -1];
 
          boundary_num = boundary_num + 1;
@@ -212,7 +240,11 @@ for k = 1:length(B)
       boundary = downsample(boundary, 2);
       % By default bwboundaries provides coords in y, x
       ps = polyshape(boundary(:,2), boundary(:,1))
-      ps = rmslivers(ps,1); 
+      %ps = rmslivers(ps,1); % bit of a bug, this was too aggresive causing
+      ps = rmslivers(ps,0.01);
+      %the outside box (4 verts) to falsly get kicked out by
+      %MIN_SIMPLIFIED_POINTS(4). Fix is to just keep it '<' not '<=' and do
+      %still run rmslivers
       
       %Sometimes you get sub regions TODO determine if we need to use because
       %ps by default splits verteces by NaNs
@@ -230,7 +262,7 @@ for k = 1:length(B)
       regs = regions(ps);
       ps = regs(1);
 
-      [x,y] = centroid(ps);
+      
 
       %Insert children as holes
       % Find all children of this parent
@@ -257,10 +289,44 @@ for k = 1:length(B)
 
          ps = xor(ps, child_ps);
 
+
+        % Now find grandchildren (level 2 - these become separate polyshapes)
+        grandchildren_idx = find(A(:, child_idx) == 1);
+        
+        % Process each grandchild as a separate polyshape
+        for m = 1:length(grandchildren_idx)
+            grandchild_idx = grandchildren_idx(m);
+
+            grandchild_boundary = B{grandchild_idx};
+            grandchild_boundary = downsample(grandchild_boundary, 2);
+            grandchild_ps = polyshape(grandchild_boundary(:,2), grandchild_boundary(:,1));
+            
+            grandchild_ps = polybuffer(grandchild_ps, 0.5, "JointType","square");
+            grandchild_ps = simplify(grandchild_ps, "KeepCollinearPoints",false);
+            grandchild_ps_size = size(child_ps.Vertices);
+         
+            if (grandchild_ps.NumRegions == 0 | grandchild_ps_size < MIN_SIMPLIFIED_POINTS)
+                continue
+            end   
+
+            [x,y] = centroid(grandchild_ps);
+            plot(x,y,'r*')
+            
+            grandchild_simplified = grandchild_ps.Vertices .* [1, -1];
+            boundary_num = boundary_num + 1;
+            simple_bounds{1, boundary_num} = grandchild_simplified;
+            centroids{1, boundary_num} = [x,-y];
+
+            % Plot grandchild as separate polyshape
+            plot(grandchild_ps, 'FaceColor', 'yellow', 'EdgeColor', 'black')
+        end
+
       end
 
       simplified = ps.Vertices .* [1, -1];
 
+
+      [x,y] = centroid(ps);
 
       plot(x,y,'r*')
       plot(ps)
@@ -341,7 +407,7 @@ ps = polybuffer(ps, 0.5, "JointType","square");
 %ps.Vertices(663,:) = []; % Removing problematic vertex for frame 0058 works
 
 ps = simplify(ps, "KeepCollinearPoints",false);
-%ps = rmslivers(ps,1); % THis techinically fixes the problem
+%ps = rmslivers(ps,1); % This removes slivers aggressively
 ps = sortregions(ps,'area','descend');
 plot(ps);
 %This xy is correct
@@ -401,6 +467,11 @@ for k = 1:length(B)
       % Create polyshape with holes
       ps = polyshape(all_vertices_x, all_vertices_y);
       plot(ps)
+[cx, cy] = centroid(ps);
+% Add text label
+   text(cx, cy, num2str(k), ...
+      'HorizontalAlignment','center', ...
+      'FontSize',12, 'FontWeight','bold');
    end
 end
 
@@ -428,6 +499,20 @@ for k = 1:length(B)
          child_boundary = B{child_idx};
          child_ps = polyshape(child_boundary(:,2), child_boundary(:,1));
          ps = xor(ps, child_ps);
+
+            % Now find grandchildren (level 2 - these become separate polyshapes)
+            grandchildren_idx = find(A(:, child_idx) == 1);
+            
+            % Process each grandchild as a separate polyshape
+            for m = 1:length(grandchildren_idx)
+                grandchild_idx = grandchildren_idx(m);
+
+                grandchild_boundary = B{grandchild_idx};
+                grandchild_ps = polyshape(grandchild_boundary(:,2), grandchild_boundary(:,1));
+                
+                % Plot grandchild as separate polyshape
+                plot(grandchild_ps, 'FaceColor', 'yellow', 'EdgeColor', 'black')
+            end
 
       end
 

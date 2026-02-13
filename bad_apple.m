@@ -7,11 +7,11 @@ bad_vid = VideoReader('bad-apple.mp4')
 APPROX_BOUNDARY_AMOUNT = 7;
 MIN_SIMPLIFIED_POINTS = 4;
 
-%num_frames = bad_vid.NumFrames;
-%start_frame = 0;
+num_frames = bad_vid.NumFrames;
+start_frame = 0;
 
-num_frames = 100;
-start_frame = 545;
+% num_frames = 100;
+% start_frame = 545;
 
 
 simple_bounds = cell(num_frames, APPROX_BOUNDARY_AMOUNT);
@@ -127,6 +127,21 @@ end
 close(v);
 
 save('bad_apple.mat', 'simple_bounds', "num_frames", "centroids", "boundary_nums");
+
+%% Split main bad apple mat into chunks 
+load('bad_apple_run4_all.mat')
+
+start_frame = 446;
+end_frame = 446 + 50;
+
+% Extract the chunk
+simple_bounds = simple_bounds(start_frame:end_frame, :);
+centroids = centroids(start_frame:end_frame, :);
+boundary_nums = boundary_nums(start_frame:end_frame);
+num_frames = end_frame - start_frame + 1;
+
+save('bad_apple.mat', 'simple_bounds', "num_frames", "centroids", "boundary_nums");
+
 
 %% bad apple video lower framerate
 bad_vid = VideoReader('bad-apple.mp4')

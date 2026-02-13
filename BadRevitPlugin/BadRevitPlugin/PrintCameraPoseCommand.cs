@@ -69,6 +69,16 @@ namespace BadRevitPlugin
             TaskDialog.Show("Camera Pose", sb.ToString());
 
 
+            //activeUIView.ZoomAndCenterRectangle(animator.tl3DView, animator.br3DView);
+
+            //using (Transaction trans = new Transaction(doc, "Reset Camera ViewBox"))
+            //{
+
+            //    trans.Start();
+
+            //}
+
+            return Result.Succeeded;
 
             // Travel to start pos
             using (Transaction trans = new Transaction(doc, "Animate Camera"))

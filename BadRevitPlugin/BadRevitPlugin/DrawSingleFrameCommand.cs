@@ -14,8 +14,8 @@ namespace BadRevitPlugin
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             //Might be good case for self managed singleton
-            if (BadApple.Resources == null)
-            {
+            //if (BadApple.Resources == null)
+            //{
                 BadApple.Application = commandData.Application;
                 BadApple.Resources = new RevitResources();
                 var initRes = BadApple.Resources.InitResources(commandData.Application.ActiveUIDocument.Document);
@@ -25,7 +25,7 @@ namespace BadRevitPlugin
                     BadApple.Instance = null;
                     return initRes;
                 }
-            }
+            //}
 
             // Show input dialog
             var inputDialog = new SelectFrameNumPopup();

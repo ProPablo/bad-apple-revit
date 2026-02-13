@@ -78,7 +78,7 @@ namespace BadRevitPlugin
 
             //}
 
-            return Result.Succeeded;
+            //return Result.Succeeded;
 
             // Travel to start pos
             using (Transaction trans = new Transaction(doc, "Animate Camera"))

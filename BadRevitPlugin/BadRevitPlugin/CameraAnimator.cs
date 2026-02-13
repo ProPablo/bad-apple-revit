@@ -33,36 +33,36 @@ namespace BadRevitPlugin
         public XYZ start_tl3DView = new XYZ(-132.559041647816, -368.472920520816, -234.351175102827);
         public XYZ start_br3DView = new XYZ(636.207529692398, 35.1842552088059, -211.155246657287);
 
-        XYZ end_tlView = new XYZ(-80.9455112612369, -391.319655354013, -289.627596686653);
-        XYZ end_brView = new XYZ(288.645929776608, 303.619236838641, 35.7198544681565);
+        XYZ end_tlView = new XYZ(-46.4289011081389, -491.77638655682, -338.17945891452);
+        XYZ end_brView = new XYZ(286.082455984911, 487.969496491977, 107.066376409194);
 
         public CameraAnimator(int totalFrames)
         {
             {
 
-                XYZ eyePos = new XYZ(-5.19444907657589, -19.1078684286434, -12.9939517178807);
-                XYZ upDir = new XYZ(-0.512543360516794, 0.439802436244427, 0.737477539090933);
-                XYZ forwardDir = new XYZ(-0.559675862185699, 0.480245822418388, -0.675371660151935);
+                //XYZ eyePos = new XYZ(-5.19444907657589, -19.1078684286434, -12.9939517178807);
+                //XYZ upDir = new XYZ(-0.512543360516794, 0.439802436244427, 0.737477539090933);
+                //XYZ forwardDir = new XYZ(-0.559675862185699, 0.480245822418388, -0.675371660151935);
 
 
                 // new
-                //XYZ eyePos = new XYZ(189.712647391503, 6.03937421696475, -212.889960955653);
-                //XYZ upDir = new XYZ(0.00267616633981158, 0.998366046765191, 0.0570795480024686);
-                //XYZ forwardDir = new XYZ(0.000153003817345909, 0.0570793429359344, -0.998369635352541);
+                XYZ eyePos = new XYZ(189.712647391503, 6.03937421696475, -212.889960955653);
+                XYZ upDir = new XYZ(0.00267616633981158, 0.998366046765191, 0.0570795480024686);
+                XYZ forwardDir = new XYZ(0.000153003817345909, 0.0570793429359344, -0.998369635352541);
 
                 StartOrientation = new ViewOrientation3D(eyePos, upDir, forwardDir);
             }
 
             {
 
-                XYZ eyePos = new XYZ(-39.1125166171924, -32.8130024365151, -31.0643017417252);
-                XYZ upDir = new XYZ(0.365390209958605, 0.488754163911767, 0.792218001389338);
-                XYZ forwardDir = new XYZ(0.474353638614843, 0.634506097100867, -0.610238181593617);
+                //XYZ eyePos = new XYZ(-39.1125166171924, -32.8130024365151, -31.0643017417252);
+                //XYZ upDir = new XYZ(0.365390209958605, 0.488754163911767, 0.792218001389338);
+                //XYZ forwardDir = new XYZ(0.474353638614843, 0.634506097100867, -0.610238181593617);
 
-                //new
-                //XYZ eyePos = new XYZ(2.96461334285936, -7.48824499257227, 10.293689070691);
-                //XYZ upDir = new XYZ(-0.408248290463863, 0.408248290463863, 0.816496580927726);
-                //XYZ forwardDir = new XYZ(-0.577350269189626, 0.577350269189626, -0.577350269189626);
+                //Double new
+                XYZ eyePos = new XYZ(-22.9659741617457, -52.6848201398269, 24.7006958191927);
+                XYZ upDir = new XYZ(-0.44053233457539, 0.303407422006465, 0.844911355388805);
+                XYZ forwardDir = new XYZ(-0.695842876098529, 0.479247212039751, -0.534906348377969);
 
                 //XYZ eyePos = new XYZ(0,0, 10.6693712775483);
                 //XYZ upDir = new XYZ(0, 1, 0);
@@ -75,7 +75,7 @@ namespace BadRevitPlugin
 
             // Convert view orientations to quaternions
             startRotation = ViewOrientationToQuaternion(StartOrientation);
-            //endRotation = ViewOrientationToQuaternion(end);
+            endRotation = ViewOrientationToQuaternion(EndOrientation);
 
             var uidoc = BadApple.Application.ActiveUIDocument;
             activeUIView = uidoc.GetOpenUIViews().FirstOrDefault(uv => uv.ViewId == uidoc.ActiveView.Id);
@@ -98,10 +98,10 @@ namespace BadRevitPlugin
                     trans.Commit();
                 }
 
-                //var lerpedViewRectTL = Lerp(start_tl3DView, end_tlView, _progress);
-                //var lerpedViewRectBR = Lerp(start_br3DView, end_brView, _progress);
+                var lerpedViewRectTL = Lerp(start_tl3DView, end_tlView, _progress);
+                var lerpedViewRectBR = Lerp(start_br3DView, end_brView, _progress);
 
-                //activeUIView.ZoomAndCenterRectangle(lerpedViewRectTL, lerpedViewRectBR);
+                activeUIView.ZoomAndCenterRectangle(lerpedViewRectTL, lerpedViewRectBR);
 
                 IncrementProgress();
             }

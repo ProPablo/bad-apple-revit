@@ -81,36 +81,36 @@ namespace BadRevitPlugin
             //return Result.Succeeded;
 
             // Travel to start pos
-            using (Transaction trans = new Transaction(doc, "Animate Camera"))
-            {
+            //using (Transaction trans = new Transaction(doc, "Animate Camera"))
+            //{
 
-                // Get the active 3D view
-                var activeView3D = doc.ActiveView as View3D;
-                if (activeView3D == null)
-                {
-                    TaskDialog.Show("Error", "Please activate a 3D view before starting");
-                    return Result.Failed;
-                }
+            //    // Get the active 3D view
+            //    var activeView3D = doc.ActiveView as View3D;
+            //    if (activeView3D == null)
+            //    {
+            //        TaskDialog.Show("Error", "Please activate a 3D view before starting");
+            //        return Result.Failed;
+            //    }
 
-                trans.Start();
-                //var endQuat = animator.ViewOrientationToQuaternion(animator.EndOrientation);
-                //var endOrient = animator.QuaternionToViewVectors(endQuat);
-                //var endOrientAll = new ViewOrientation3D(animator.EndOrientation.EyePosition, endOrient.up, endOrient.forward);
-
-
-                //activeView3D.SetOrientation(endOrientAll);
-
-                animator._progress = 1;
-                ViewOrientation3D newOrientation = animator.GetCurrentOrientation();
-
-                activeView3D.SetOrientation(newOrientation);
+            //    trans.Start();
+            //    //var endQuat = animator.ViewOrientationToQuaternion(animator.EndOrientation);
+            //    //var endOrient = animator.QuaternionToViewVectors(endQuat);
+            //    //var endOrientAll = new ViewOrientation3D(animator.EndOrientation.EyePosition, endOrient.up, endOrient.forward);
 
 
-                //This has to be called for some reason to "rerender" the view.
-                //This function does not work on the default view but 
-                activeView3D.SaveOrientation();
-                trans.Commit();
-            }
+            //    //activeView3D.SetOrientation(endOrientAll);
+
+            //    animator._progress = 1;
+            //    ViewOrientation3D newOrientation = animator.GetCurrentOrientation();
+
+            //    activeView3D.SetOrientation(newOrientation);
+
+
+            //    //This has to be called for some reason to "rerender" the view.
+            //    //This function does not work on the default view but 
+            //    activeView3D.SaveOrientation();
+            //    trans.Commit();
+            //}
 
             return Result.Succeeded;
         }

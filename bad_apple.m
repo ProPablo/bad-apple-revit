@@ -7,11 +7,11 @@ bad_vid = VideoReader('bad-apple.mp4')
 APPROX_BOUNDARY_AMOUNT = 7;
 MIN_SIMPLIFIED_POINTS = 4;
 
-num_frames = bad_vid.NumFrames;
-start_frame = 0;
+%num_frames = bad_vid.NumFrames;
+%start_frame = 0;
 
-% num_frames = 100;
-% start_frame = 545;
+ num_frames = 201;
+ start_frame = 5050;
 
 
 simple_bounds = cell(num_frames, APPROX_BOUNDARY_AMOUNT);
@@ -131,8 +131,8 @@ save('bad_apple.mat', 'simple_bounds', "num_frames", "centroids", "boundary_nums
 %% Split main bad apple mat into chunks 
 load('bad_apple_run4_all.mat')
 
-start_frame = 446;
-end_frame = 446 + 50;
+start_frame = 5050;
+end_frame = 5251;
 
 % Extract the chunk
 simple_bounds = simple_bounds(start_frame:end_frame, :);
@@ -190,9 +190,10 @@ close(v);
 %bad_img = imread('bad/0058.png'); % Curve length is too small for Revit's tolerance (as identified by Application.ShortCurveTolerance).
 %bad_img = read(bad_vid, 1884);
 %bad_img = read(bad_vid, 1878);
-bad_img = read(bad_vid, 551);
+%bad_img = read(bad_vid, 551);
 % start and end points are the same here
-
+%bad_img = read(bad_vid, 5666 + 1);
+bad_img = read(bad_vid, 5263 + 1);
 
 gray_img = rgb2gray(bad_img);
 BW = imbinarize(gray_img, 'global'); % we dont need adaptive here, adaptive is good for eg a half lit page
@@ -411,6 +412,7 @@ plot(boundary(:,2), boundary(:,1), 'g', 'LineWidth', 2)
 % This seems to be the bad vertex (collinear points)
 % find(ps.Vertices(:,1) == 243 & ps.Vertices(:,2) == 6 )
 
+boundary = downsample(boundary, 2);
 
 % By default polyshape simplifies
 %ps = polyshape(boundary(:,2), boundary(:,1), "Simplify", false)

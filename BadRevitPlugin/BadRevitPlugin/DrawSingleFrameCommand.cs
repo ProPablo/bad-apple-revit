@@ -42,6 +42,8 @@ namespace BadRevitPlugin
             BadApple.Instance = new BadAppleInstance();
             BadApple.Instance.isRunning = false;
 
+            BadApple.Instance.animator.SetCurrentProgressByAssigningFrame(frameIndex);
+
             // Draw the frame
             var res = BadApple.Instance.DrawFrame(frameIndex);
             if (res == Result.Succeeded)

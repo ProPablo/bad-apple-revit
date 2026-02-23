@@ -1,7 +1,7 @@
 %% INIT
 clear; close all;
 
-img = imread('ocr_test_2.jpg');
+img = imread('ocr_test_11_3.jpg');
 figure
 imshow(img)
 % line = drawline;
@@ -21,7 +21,7 @@ x2 = linePos(2, 1);
 angle = rad2deg( atan2(y2 - y1, x2 - x1));
 
 %angle = -4;
-img = imrotate(img, angle);
+%img = imrotate(img, angle);
 figure 
 imshow(img)
 
@@ -90,12 +90,23 @@ BW2 = bwareafilt(BW, [3000, 50000]); %Filter out overly small and large blobs
 m = 360; n = 90;
 
 SE_open = strel("rectangle",[n m] .* 0.1);
+
+
+figure
+imshow(BW2)
+
 % The open operation makes us lose our angle so we have to be mindful of that
 % On second thought angle is not needed, use phone gyro
 BW3 = imopen(BW2, SE_open); 
 
+figure 
+imshow(BW3)
+
 SE_close = strel("rectangle",[n m] .* 1.2);
 BW4 = imclose(BW3, SE_close);
+
+figure 
+imshow(BW4)
 
 figure;
 montage({BW2, BW3, BW4}, "Size", [1 3], "BorderSize", 3, "BackgroundColor", "red");

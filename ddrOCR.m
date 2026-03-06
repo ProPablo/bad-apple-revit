@@ -1,7 +1,7 @@
 %% INIT
 clear; close all;
 
-img = imread('ocr_test_11_3.jpg');
+img = imread('ocr_test_12_bigger.jpg');
 figure
 imshow(img)
 % line = drawline;

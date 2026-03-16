@@ -127,6 +127,16 @@ numAdditionalPixels = 5;
 roi(:,1:2) = roi(:,1:2) - numAdditionalPixels;
 roi(:,3:4) = roi(:,3:4) + 2*numAdditionalPixels;
 
+[imgHeight, imgWidth] = size(img);
+
+% Clamp x and y (columns 1 and 2) to be at least 1
+roi(:,1) = max(roi(:,1), 1);
+roi(:,2) = max(roi(:,2), 1);
+
+% Clamp width and height so x+w and y+h don't exceed image dimensions
+% roi(:,3) = min(roi(:,3), imgWidth  - roi(:,1));
+% roi(:,4) = min(roi(:,4), imgHeight - roi(:,2));
+
 roi_img = insertShape(img,"rectangle",roi,LineWidth=4);
 
 
@@ -290,7 +300,7 @@ warped_details_top_left = [t1x, t1y];
 score_roi = [warped_details_top_left + score_offset , score_box_size];
 
 score_roi  = expandRoi(score_roi);
-
+%% OCR
 img_cropped = imcrop(warpedImg, score_roi);
 Icorrected = imtophat(img_cropped,strel("disk",15)); % Really helps with eliminating similarity with background (check main resource)
 BW1 = imbinarize(Icorrected);

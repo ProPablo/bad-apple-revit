@@ -1,7 +1,7 @@
 %% INIT
 clear; close all;
 
-img = imread('ocr_test_12_bigger.jpg');
+img = imread('ocr_test.jpg');
 figure
 imshow(img)
 % line = drawline;
@@ -20,10 +20,10 @@ x2 = linePos(2, 1);
 
 angle = rad2deg( atan2(y2 - y1, x2 - x1));
 
-%angle = -4;
-%img = imrotate(img, angle);
-figure 
-imshow(img)
+%angle = 0.1;
+%rot_img = imrotate(img, angle);
+%figure 
+%imshow(rot_img)
 
 %% Selecting Details box
 
@@ -115,7 +115,7 @@ montage({BW2, BW3, BW4}, "Size", [1 3], "BorderSize", 3, "BackgroundColor", "red
 % ACTUAL blob detection that is done better than before because it is
 % affected by morphology (no text in boxes)
 CC = bwconncomp(BW4);
-stats = regionprops(CC, ["BoundingBox"] );
+stats = regionprops(CC, "all");
 roi = vertcat(stats(:).BoundingBox);
 
 figure
@@ -127,15 +127,19 @@ numAdditionalPixels = 5;
 roi(:,1:2) = roi(:,1:2) - numAdditionalPixels;
 roi(:,3:4) = roi(:,3:4) + 2*numAdditionalPixels;
 
-[imgHeight, imgWidth] = size(img);
+imgHeight = size(img, 1);
+imgWidth = size(img, 2);
 
 % Clamp x and y (columns 1 and 2) to be at least 1
 roi(:,1) = max(roi(:,1), 1);
 roi(:,2) = max(roi(:,2), 1);
 
-% Clamp width and height so x+w and y+h don't exceed image dimensions
-% roi(:,3) = min(roi(:,3), imgWidth  - roi(:,1));
-% roi(:,4) = min(roi(:,4), imgHeight - roi(:,2));
+% Clamp width and height so x+w-1 and y+h-1 don't exceed image dimensions
+roi(:,3) = max(min(roi(:,3), imgWidth  - roi(:,1) + 1), 1);
+roi(:,4) = max(min(roi(:,4), imgHeight - roi(:,2) + 1), 1);
+
+% Ensure ROI values are integer for image processing functions
+roi = round(roi);
 
 roi_img = insertShape(img,"rectangle",roi,LineWidth=4);
 
@@ -173,6 +177,9 @@ imshow(annotated_img)
 correct_roi_idx = contains(text, "Details");
 correct_roi = roi(correct_roi_idx, :);
 correct_roi = correct_roi(1, :); % Only need first detection
+
+%%
+
 
 %% Create offsets for score OCR
 % Again thise are values based on ocr_test_2 rotated to be aliigned
@@ -375,6 +382,44 @@ imshow(BW4)
 
 results = ocr(BW4,LayoutAnalysis="block"); % Block is better here since there is a very likely chance theres a lot of stuff on the outside 
 difficulty = string(strip(replace({results.Text}, {newline}, "")))
+
+%% Full details box for scores OCR
+
+% Doesnt work that well
+% Raw offsets
+% top_left_all_scores = [1561,2550];
+% bot_right_all_scores = [2020,2910];
+
+top_left_all_scores = [1700,2550];
+bot_right_all_scores = [2010,2910];
+
+all_scores_size = bot_right_all_scores - top_left_all_scores;
+all_scores_offset = top_left_all_scores - top_left_details; %b(dest) - a (origin)
+
+% rois
+all_scores_roi = [warped_details_top_left + all_scores_offset , all_scores_size];
+all_scores_roi(:,1:2) = all_scores_roi(:,1:2) - numAdditionalPixels;
+all_scores_roi(:,3:4) = all_scores_roi(:,3:4) + 2*numAdditionalPixels;
+
+img_all_scores = imcrop(warpedImg, all_scores_roi);
+Icorrected_all_scores = imtophat(img_all_scores, strel("disk",15));
+BW_all_scores = imbinarize(rgb2gray(Icorrected_all_scores));
+
+figure
+montage({img_all_scores, Icorrected_all_scores, BW_all_scores}, "BorderSize", 3, "BackgroundColor", "red");
+
+marker_all_scores = imerode(Icorrected_all_scores, strel("line",10,0));
+Iclean_all_scores = imreconstruct(marker_all_scores, Icorrected_all_scores);
+Ibinary_all_scores = imbinarize(Iclean_all_scores);
+
+figure
+montage({Iclean_all_scores, Ibinary_all_scores, marker_all_scores});
+
+BW2_all_scores = imcomplement(BW_all_scores);
+figure
+imshowpair(Ibinary_all_scores, BW2_all_scores, "montage");
+
+results_all_scores = ocr(BW2_all_scores, LayoutAnalysis="page", CharacterSet="0123456789")
 
 %% MAIN IMPL STOP HERE
 disp("done")
